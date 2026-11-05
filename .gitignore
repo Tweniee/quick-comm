@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+.env
+*.log
+coverage/
+apps/backend/uploads/
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/.packages
+apps/mobile/pubspec.lock
+.idea/
+.DS_Store
