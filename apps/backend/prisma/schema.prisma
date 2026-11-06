@@ -1,4 +1,4 @@
-// Quick Delivery — system of record.
+// Tweniee — system of record.
 // All money is stored in paise (integer). ₹35 = 3500.
 
 generator client {

@@ -48,7 +48,7 @@ Demo logins created by the seed (password `ChangeMe@123`; change before any real
 
 | Who | Login |
 |---|---|
-| Super Admin | `admin@quickdelivery.local` (also `support@…`, `staff@…` with narrower roles) |
+| Super Admin | `admin@tweniee.local` (also `support@…`, `staff@…` with narrower roles) |
 | Business (verified, ₹1,000 wallet, API enabled) | `9876500001` |
 | Rider (approved) | `9876511111` — phone + OTP; in development the OTP is returned in the API response |
 

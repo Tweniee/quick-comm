@@ -49,9 +49,13 @@ h3 { font-size: 15px; margin: 0; color: var(--navy); }
 /* Business app bottom nav (web portal at phone width) */
 .bnav { display: none; }
 @media (max-width: 800px) {
-  .shell.business .side nav, .shell.business .side .side-foot { display: none; }
-  .shell.business .side { padding: 14px 14px 0; }
-  .shell.business .bnav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: sticky; bottom: 0; height: 64px; width: 100%; background: #fff; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; z-index: 5; }
+  .shell { align-content: flex-start; }
+  .shell.business { padding-bottom: 64px; }
+  .shell.business .side nav, .shell.business .side-foot span { display: none; }
+  .shell.business .side { padding: 12px 16px; flex-direction: row; align-items: center; justify-content: space-between; }
+  .shell.business .brand { padding: 0; }
+  .shell.business .side-foot { margin: 0; padding: 0; }
+  .shell.business .bnav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: fixed; left: 0; right: 0; bottom: 0; height: 64px; background: #fff; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; z-index: 5; }
   .bnav a { display: flex; align-items: center; justify-content: center; color: var(--muted); }
   .bnav a.active { color: var(--teal-ink); }
 }

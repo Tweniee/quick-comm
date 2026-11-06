@@ -83,7 +83,7 @@ export default function OrderDetail({ params }: { params: { id: string } }) {
   if (d.status === 'NO_RIDER') return (
     <>
       {head}{errors}
-      <div className="alert warn" style={{ flexDirection: 'column', alignItems: 'flex-start' }}><b>No rider available at this moment in your area</b><span>{d.assignment?.offers?.length ?? 0} riders were offered this order. None could take it. Please retry in 10 minutes.</span></div>
+      <div className="alert warn" style={{ flexDirection: 'column', alignItems: 'flex-start' }}><b>No rider available at this moment in your area</b><span>{d.assignment?.offers?.length ? `${d.assignment.offers.length} rider${d.assignment.offers.length > 1 ? 's were' : ' was'} offered this order. None could take it.` : 'No riders were free near your shop.'} Please retry in 10 minutes.</span></div>
       <dl className="kv card"><dt>Order status</dt><dd>Still Ready</dd><dt>Charged</dt><dd>₹0</dd><dt>Retries left today</dt><dd>{d.assignment?.retriesLeft ?? '—'}</dd></dl>
       <p className="note">Ready orders with no rider by end of day are cancelled automatically, with no charge.</p>
       <button className="big" disabled={d.assignment?.retriesLeft === 0} onClick={() => act('retry-assignment')}>Retry assignment</button>
