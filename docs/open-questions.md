@@ -17,7 +17,7 @@ Abhishek answered the 17 build questions on 6 Nov 2026. This page records each a
 
 ## Product
 10. **Launch city: open.** Indore is only the sample seed so the app runs. Change it in Admin → Cities once the real city is picked.
-11. **Business signup OTP: decided, waiting on the SMS provider.** Until then, manual staff review is the gate, and no unverified business can create orders.
+11. **Business signup OTP: built, waiting on the SMS provider.** Signup now asks for a phone code and an email code (`POST /business/verify-contact`). Until an SMS/email provider is picked, codes go through the stub provider and are shown on screen in development. Manual staff review is still the gate, and no unverified business can create orders.
 12. **Express KYC: decided.** Manual review only for now. Signzy, IDfy or Karza can be added later.
 13. **Return confirmation: decided.** A 4-digit return code is shown to the business. The rider enters it, or the business taps "I received it".
 14. **Wait rule: decided.** "Customer not reachable", "Wrong address" and "Could not find location" need a 15-minute wait and at least 2 logged calls. "Customer refused", "OTP not provided" and "Customer asked to return" need no wait.
