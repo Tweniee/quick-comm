@@ -8,6 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Android emulator reaches the host machine at 10.0.2.2.
 const String kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:4000');
 
+/// Web portal, for steps that live only on the web (signup, Razorpay checkout, API keys).
+const String kWebUrl = String.fromEnvironment('WEB_URL', defaultValue: 'http://10.0.2.2:3000');
+
+/// Ledger entry names and signs, same as the web passbook. Amounts are stored positive.
+const ledgerLabel = {'RECHARGE': 'Recharge', 'HOLD': 'Held', 'RELEASE': 'Hold released', 'FORWARD_CHARGE': 'Forward', 'RETURN_CHARGE': 'Return', 'CREDIT': 'Credit', 'REFUND': 'Refund', 'DEBIT_ADJUSTMENT': 'Adjustment'};
+int ledgerSign(String t) => const ['RECHARGE', 'CREDIT', 'REFUND'].contains(t) ? 1 : const ['FORWARD_CHARGE', 'RETURN_CHARGE', 'DEBIT_ADJUSTMENT'].contains(t) ? -1 : 0;
+String ledgerAmount(String t, num a) { final s = ledgerSign(t); return '${s > 0 ? '+' : s < 0 ? '−' : ''}${rupees(a.abs())}'; }
+
 class ApiException implements Exception {
   ApiException(this.status, this.code, this.message, {this.nextAction, this.details});
   final int status;
@@ -48,6 +56,25 @@ class Api {
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body ?? {});
 
+  /// Multipart upload (document renewals). [fields] go as form fields, the file as `file`.
+  Future<dynamic> upload(String path, Map<String, String> fields, String filePath) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$kApiUrl/api$path'))..fields.addAll(fields);
+    if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    http.Response res;
+    try {
+      res = await http.Response.fromStream(await req.send().timeout(const Duration(seconds: 60)));
+    } catch (_) {
+      throw ApiException(0, 'NETWORK', 'No network. Try again.');
+    }
+    final data = res.body.isEmpty ? null : jsonDecode(res.body);
+    if (res.statusCode >= 400) {
+      final e = (data is Map ? data['error'] : null) as Map<String, dynamic>? ?? {};
+      throw ApiException(res.statusCode, e['code'] as String? ?? 'ERROR', e['message'] as String? ?? 'Upload failed');
+    }
+    return data;
+  }
+
   Future<dynamic> _send(String method, String path, [Map<String, dynamic>? body]) async {
     final uri = Uri.parse('$kApiUrl/api$path');
     final headers = {
@@ -87,3 +114,20 @@ const statusLabel = {
   'PICKED_UP': 'Picked Up', 'OUT_FOR_DELIVERY': 'Out for Delivery', 'ARRIVED': 'Arrived', 'DELIVERED': 'Delivered',
   'UNDELIVERED': 'Undelivered', 'RETURNING': 'Returning', 'RETURNED': 'Returned', 'CANCELLED': 'Cancelled',
 };
+
+/// Tweniee partner support line. Set at build time: --dart-define=SUPPORT_PHONE=+91XXXXXXXXXX
+const String kSupportPhone = String.fromEnvironment('SUPPORT_PHONE', defaultValue: '');
+
+/// "3:41 pm"
+String clock(String? iso) {
+  if (iso == null) return '—';
+  final d = DateTime.parse(iso).toLocal();
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'am' : 'pm'}';
+}
+
+/// "11:42"
+String mmss(Duration d) {
+  final s = d.inSeconds.clamp(0, 359999);
+  return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+}

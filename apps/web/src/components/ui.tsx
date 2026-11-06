@@ -32,7 +32,14 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
   return <div className={`stat ${tone ?? ''}`}><div className="stat-v">{value}</div><div className="stat-l">{label}</div></div>;
 }
 
-export function Shell({ kind, nav, children }: { kind: Kind; nav: { href: string; label: string }[]; children: ReactNode }) {
+export type NavItem = { href: string; label: string } | { section: string };
+
+export function Logo({ size }: { size?: 'lg' }) {
+  return <div className={`logo ${size ?? ''}`} aria-hidden="true">T</div>;
+}
+
+export function Shell({ kind, nav, bottomNav, search, children }: { kind: Kind; nav: NavItem[]; bottomNav?: { href: string; label: string }[]; search?: string; children: ReactNode }) {
+  const [q, setQ] = useState('');
   const router = useRouter();
   const path = usePathname();
   const [ready, setReady] = useState(false);
@@ -42,21 +49,52 @@ export function Shell({ kind, nav, children }: { kind: Kind; nav: { href: string
     else setReady(true);
   }, [kind, router]);
   if (!ready) return null;
+  const isActive = (href: string) => path === href || (href !== `/${kind}` && path.startsWith(href + '/')) || (href !== `/${kind}` && path === href);
   return (
-    <div className="shell">
+    <div className={`shell ${kind}`}>
       <aside className="side">
-        <div className="brand">Quick<span>Delivery</span><small>{kind === 'admin' ? 'Operations' : 'Business'}</small></div>
-        <nav>
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} className={path === n.href || (n.href !== `/${kind}` && path.startsWith(n.href)) ? 'active' : ''}>{n.label}</Link>
-          ))}
+        <div className="brand"><Logo />Tweniee {kind === 'admin' ? 'Admin' : 'Business'}</div>
+        <nav aria-label="Main">
+          {nav.map((n, i) => 'section' in n
+            ? <span key={i} className="section">{n.section}</span>
+            : <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>{n.label}</Link>)}
         </nav>
         <div className="side-foot">
-          <div className="muted small">{meta?.business?.name ?? meta?.user?.name}</div>
+          <span>{meta?.business?.name ?? meta?.user?.name}{meta?.user?.role ? ` · ${meta.user.role.replace('_', ' ').toLowerCase()}` : ''}</span>
           <button className="link" onClick={() => { session.clear(kind); router.replace(`/${kind}/login`); }}>Log out</button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        {search && (
+          <form className="topsearch" role="search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) router.push(`/${kind}/search?q=${encodeURIComponent(q.trim())}`); }}>
+            <span aria-hidden="true">⌕</span>
+            <input aria-label="Search" placeholder={search} value={q} onChange={(e) => setQ(e.target.value)} />
+          </form>
+        )}
+        {children}
+      </main>
+      {bottomNav && (
+        <nav className="bnav" aria-label="App">
+          {bottomNav.map((n) => <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>{n.label}</Link>)}
+        </nav>
+      )}
+    </div>
+  );
+}
+
+export function PageHead({ title, sub, right }: { title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="row between" style={{ alignItems: 'flex-start' }}>
+      <div><h1>{title}</h1>{sub && <p className="sub" style={{ margin: 0 }}>{sub}</p>}</div>
+      {right && <div className="row">{right}</div>}
+    </div>
+  );
+}
+
+export function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="chips" role="tablist">
+      {options.map((o) => <button key={o.value} role="tab" aria-selected={value === o.value} className={`chip ${value === o.value ? 'on' : ''}`} onClick={() => onChange(o.value)}>{o.label}</button>)}
     </div>
   );
 }
@@ -81,3 +119,27 @@ export function usePoll<T>(load: () => Promise<T>, ms = 10000, deps: unknown[] =
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
+
+/** One box per digit; paste fills all boxes. */
+export function OtpBoxes({ value, onChange, length = 6, label }: { value: string; onChange: (v: string) => void; length?: number; label?: string }) {
+  const set = (i: number, ch: string, el: HTMLInputElement) => {
+    const digits = ch.replace(/\D/g, '');
+    if (digits.length > 1) { onChange(digits.slice(0, length)); return; }
+    const arr = value.padEnd(length, ' ').split('');
+    arr[i] = digits || ' ';
+    onChange(arr.join('').trimEnd());
+    if (digits && el.nextElementSibling instanceof HTMLInputElement) el.nextElementSibling.focus();
+  };
+  return (
+    <div className="otp-boxes" role="group" aria-label={label}>
+      {Array.from({ length }, (_, i) => (
+        <input key={i} inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} aria-label={`${label ?? 'Code'} digit ${i + 1}`} value={value[i]?.trim() ?? ''}
+          onChange={(e) => set(i, e.target.value, e.target)}
+          onKeyDown={(e) => { if (e.key === 'Backspace' && !value[i]?.trim() && e.currentTarget.previousElementSibling instanceof HTMLInputElement) e.currentTarget.previousElementSibling.focus(); }} />
+      ))}
+    </div>
+  );
+}
+
+/** "Good afternoon" etc. */
+export const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };

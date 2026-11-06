@@ -7,6 +7,7 @@ export interface PricingInput {
   deliveryFee: number; // paise
   returnFee: number; // paise
   driverSharePct?: number;
+  reason?: string;
   minRechargeAmount?: number;
   maxRechargeAmount?: number;
   lowBalanceWarnAt?: number;
@@ -64,8 +65,13 @@ export class CitiesService {
     return city;
   }
 
-  pricingHistory(cityId: string) {
-    return this.prisma.pricingConfig.findMany({ where: { cityId }, orderBy: { effectiveFrom: 'desc' } });
+  async pricingHistory(cityId: string) {
+    const rows = await this.prisma.pricingConfig.findMany({ where: { cityId }, orderBy: { effectiveFrom: 'desc' } });
+    const ids = [...new Set(rows.map((r) => r.setByAdminId).filter(Boolean) as string[])];
+    const admins = Object.fromEntries((await this.prisma.adminUser.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((a) => [a.id, a.name]));
+    const reasons = Object.fromEntries((await this.prisma.auditLog.findMany({ where: { action: 'PRICING_SET', entityId: cityId }, select: { newValue: true, reason: true } }))
+      .map((a) => [(a.newValue as { id?: string } | null)?.id, a.reason]));
+    return rows.map((r) => ({ ...r, setByName: r.setByAdminId ? admins[r.setByAdminId] ?? null : null, reason: reasons[r.id] ?? null }));
   }
 
   /** New price version. Closes the previous open-ended version at the new effective time. */
@@ -90,7 +96,7 @@ export class CitiesService {
           setByAdminId: adminId,
         },
       });
-      await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: 'PRICING_SET', entity: 'City', entityId: cityId, newValue: p }, tx);
+      await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: 'PRICING_SET', entity: 'City', entityId: cityId, newValue: p, reason: input.reason }, tx);
       return p;
     });
   }

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppError, Errors } from '../common/errors';
 import { PrismaService } from '../common/prisma.service';
 
-export const TICKET_TYPES = ['WHERE_IS_MY_PARCEL', 'WALLET_DISPUTE', 'RIDER_ISSUE', 'BUSINESS_ISSUE', 'LOSS_DAMAGE', 'SUSPICIOUS_PARCEL', 'OTHER'];
+export const TICKET_TYPES = ['WHERE_IS_MY_PARCEL', 'WALLET_DISPUTE', 'NO_RIDER', 'RIDER_ISSUE', 'BUSINESS_ISSUE', 'LOSS_DAMAGE', 'SUSPICIOUS_PARCEL', 'API_ACCESS', 'OTHER'];
 
 export const CANNED_REPLIES: Record<string, string> = {
   WHERE_IS_MY_PARCEL: 'We checked the live timeline and the rider location. We have called the rider and will update you shortly.',
@@ -48,7 +48,7 @@ export class SupportService {
   }
 
   async get(id: string, businessId?: string) {
-    const t = await this.prisma.supportTicket.findFirst({ where: { id, ...(businessId ? { businessId } : {}) }, include: { messages: { orderBy: { createdAt: 'asc' } }, business: { select: { name: true, phone: true } } } });
+    const t = await this.prisma.supportTicket.findFirst({ where: { id, ...(businessId ? { businessId } : {}) }, include: { messages: { orderBy: { createdAt: 'asc' } }, business: { select: { name: true, phone: true, ownerName: true } } } });
     if (!t) throw Errors.notFound('Ticket');
     return t;
   }

@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { Logo } from '@/components/ui';
 
 export default function Home() {
   return (
     <div className="auth" style={{ maxWidth: 640 }}>
-      <h1>Quick Delivery</h1>
+      <div className="row" style={{ gap: 12 }}><Logo size="lg" /><h1 style={{ margin: 0 }}>Tweniee</h1></div>
       <p className="muted">Intracity bike delivery for verified local businesses. Prepaid wallet, OTP on every delivery, honest live status, no time promise.</p>
       <div className="grid g2">
         <div className="card">

@@ -180,7 +180,23 @@ export class OrdersService {
       include: ORDER_INCLUDE,
     });
     if (!o) throw Errors.notFound('Order');
-    return presentForBusiness(o, { includeReturnOtp: !!businessId });
+    const view = presentForBusiness(o, { includeReturnOtp: !!businessId });
+    if (!['READY', 'ASSIGNING', 'NO_RIDER'].includes(o.status)) return view;
+    // B10/B13: who was offered, without naming riders, so the owner can see the search is real.
+    const offers = await this.prisma.assignmentOffer.findMany({ where: { orderId: o.id }, orderBy: { createdAt: 'desc' }, take: config.assignmentMaxRiders, select: { distanceKm: true, status: true, expiresAt: true, createdAt: true, round: true } });
+    const round = offers[0]?.round;
+    const current = offers.filter((f) => f.round === round).reverse();
+    return {
+      ...view,
+      assignment: {
+        startedAt: current[0]?.createdAt ?? o.readyAt,
+        maxSeconds: config.assignmentMaxSeconds,
+        maxRiders: config.assignmentMaxRiders,
+        offerSeconds: config.offerTimeoutSeconds,
+        offers: current.map((f, i) => ({ n: i + 1, distanceKm: f.distanceKm, status: f.status, expiresAt: f.expiresAt })),
+        retriesLeft: Math.max(0, config.maxManualAssignmentRetries + 1 - o.assignmentAttempts),
+      },
+    };
   }
 
   async list(businessId: string, q: { status?: string; search?: string; from?: string; to?: string; take?: number; skip?: number }) {

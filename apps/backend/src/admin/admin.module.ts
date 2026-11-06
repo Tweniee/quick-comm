@@ -7,10 +7,11 @@ import { SupportService } from '../support/support.service';
 import { AdminBusinessService } from './admin-business.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { AdminViewsService } from './admin-views.service';
 
 @Module({
   imports: [BusinessesModule, DriversModule],
   controllers: [AdminController, BusinessTicketsController],
-  providers: [AdminService, AdminBusinessService, SupportService, PayoutsService],
+  providers: [AdminService, AdminBusinessService, AdminViewsService, SupportService, PayoutsService],
 })
 export class AdminModule {}

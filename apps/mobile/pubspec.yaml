@@ -1,5 +1,5 @@
 name: quick_delivery
-description: "A new Flutter project."
+description: "Tweniee Partner (driver) and Tweniee Business apps."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -38,6 +38,8 @@ dependencies:
   shared_preferences: ^2.5.6
   geolocator: ^14.1.2
   url_launcher: ^6.3.3
+  google_fonts: ^6.2.1
+  image_picker: ^1.2.4
 
 dev_dependencies:
   flutter_test:

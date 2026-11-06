@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ErrorBox } from '@/components/ui';
+import { ErrorBox, Logo } from '@/components/ui';
 import { api, session } from '@/lib/api';
 
 export default function AdminLogin() {
@@ -11,6 +11,7 @@ export default function AdminLogin() {
   const [error, setError] = useState<unknown>(null);
   return (
     <div className="auth">
+      <div className="row" style={{ gap: 10 }}><Logo size="lg" /><b style={{ fontSize: 18 }}>Tweniee Admin</b></div>
       <h1>Operations login</h1>
       <ErrorBox error={error} />
       <form className="card form" onSubmit={async (e) => {

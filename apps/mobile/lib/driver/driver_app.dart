@@ -40,12 +40,13 @@ class _DriverAppState extends State<DriverApp> {
     await ctx.api.load();
     final p = await SharedPreferences.getInstance();
     S.lang = p.getString('qd.driver.lang') ?? 'hi';
-    ctx.api.onUnauthorized = () => navKey.currentState?.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => LoginScreen(ctx: ctx, onLanguage: _toggleLang)), (_) => false);
+    ctx.api.onUnauthorized = () => navKey.currentState?.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => LoginScreen(ctx: ctx, onLanguage: _setLang)), (_) => false);
     setState(() => loading = false);
   }
 
-  Future<void> _toggleLang() async {
-    S.lang = S.lang == 'hi' ? 'en' : 'hi';
+  Future<void> _setLang(String lang) async {
+    if (lang == S.lang) return;
+    S.lang = lang;
     final p = await SharedPreferences.getInstance();
     await p.setString('qd.driver.lang', S.lang);
     if (ctx.api.isLoggedIn) {
@@ -58,13 +59,14 @@ class _DriverAppState extends State<DriverApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navKey,
-      title: 'QuickDeliver Rider',
+      title: 'Tweniee Partner',
+      debugShowCheckedModeBanner: false,
       theme: appTheme(),
       home: loading
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          ? const Scaffold(backgroundColor: Tw.navy, body: Center(child: TwLogo(size: 56)))
           : ctx.api.isLoggedIn
-              ? HomeScreen(ctx: ctx, onLanguage: _toggleLang)
-              : LoginScreen(ctx: ctx, onLanguage: _toggleLang),
+              ? HomeScreen(ctx: ctx, onLanguage: _setLang)
+              : LoginScreen(ctx: ctx, onLanguage: _setLang),
     );
   }
 }

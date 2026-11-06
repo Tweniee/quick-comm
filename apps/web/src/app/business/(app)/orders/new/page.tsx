@@ -3,16 +3,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { LocationInput } from '@/components/LocationInput';
-import { Card, ErrorBox } from '@/components/ui';
+import { ErrorBox, PageHead } from '@/components/ui';
 import { api, rupees } from '@/lib/api';
 
+/** B07 · Create order, with B08 (low balance) in place of the fee box when the wallet is short. */
 export default function NewOrder() {
   const router = useRouter();
   const [quote, setQuote] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [f, setF] = useState<Record<string, any>>({ weightKg: '1', value: '', isFragile: false });
   const [pin, setPin] = useState<{ lat?: number; lng?: number }>({});
-  const [more, setMore] = useState(false);
+  const [note, setNote] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -25,10 +26,11 @@ export default function NewOrder() {
     }).catch(setError);
   }, []);
   const set = (k: string) => (e: React.ChangeEvent<any>) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const short = quote && quote.walletAvailable < quote.requiredAvailable;
 
-  async function submit(markReady: boolean) {
+  async function submit() {
     setError(null);
-    if (pin.lat == null) { setError(new Error('Set the delivery location pin')); return; }
+    if (pin.lat == null) { setError(new Error('Set the delivery pin so the rider can navigate')); return; }
     setBusy(true);
     try {
       const o = await api('/business/orders', {
@@ -37,8 +39,7 @@ export default function NewOrder() {
           pickupAddressId: f.pickupAddressId, customerName: f.customerName, customerPhone: f.customerPhone,
           dropAddress: f.dropAddress, dropLandmark: f.dropLandmark, dropPincode: f.dropPincode, dropLat: pin.lat, dropLng: pin.lng,
           parcelDescription: f.parcelDescription, weightGrams: Math.round(Number(f.weightKg) * 1000), declaredValue: Math.round(Number(f.value || 0) * 100),
-          lengthCm: f.lengthCm ? Number(f.lengthCm) : undefined, widthCm: f.widthCm ? Number(f.widthCm) : undefined, heightCm: f.heightCm ? Number(f.heightCm) : undefined,
-          isFragile: f.isFragile, specialInstructions: f.specialInstructions, businessReferenceId: f.businessReferenceId || undefined, markReady,
+          isFragile: f.isFragile, specialInstructions: f.specialInstructions || undefined, businessReferenceId: f.businessReferenceId || undefined, markReady: false,
         },
       });
       router.push(`/business/orders/${o.id}`);
@@ -47,49 +48,43 @@ export default function NewOrder() {
 
   return (
     <>
-      <h1>New order</h1>
-      <ErrorBox error={error} actions={{ RECHARGE: <Link className="btn secondary" href="/business/wallet">Recharge</Link>, COMPLETE_VERIFICATION: <Link className="btn secondary" href="/business/settings">Verification</Link> }} />
-      <form className="card form" onSubmit={(e) => { e.preventDefault(); submit(true); }}>
-        <div className="form two">
-          <label>Customer phone<input required inputMode="numeric" placeholder="10 digit mobile" onChange={set('customerPhone')} /><span className="hint">The OTP and tracking link go to this number. Check it: a wrong number means a ₹60 return.</span></label>
-          <label>Customer name<input required onChange={set('customerName')} /></label>
-          <label>Delivery address<input required onChange={set('dropAddress')} /></label>
-          <label>Landmark<input placeholder="Near…" onChange={set('dropLandmark')} /></label>
-          <label>Pincode<input onChange={set('dropPincode')} /></label>
-          <label>Pickup from<select value={f.pickupAddressId ?? ''} onChange={set('pickupAddressId')}>{addresses.map((a) => <option key={a.id} value={a.id}>{a.label}: {a.address}</option>)}</select></label>
+      <PageHead title="New delivery" />
+      <ErrorBox error={error} actions={{ RECHARGE: <Link className="btn secondary" href="/business/wallet/recharge">Recharge</Link> }} />
+      <form className="form" style={{ maxWidth: 640 }} onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <label>Customer phone<input required inputMode="numeric" placeholder="10 digit mobile" onChange={set('customerPhone')} /><span className="hint">The OTP and tracking link go here. A wrong number means a ₹60 return.</span></label>
+        <label>Customer name<input required onChange={set('customerName')} /></label>
+        <label>Delivery address<input required onChange={set('dropAddress')} placeholder="House, street, area" /></label>
+        <div className="row">
+          <label style={{ flex: 2 }}>Landmark<input placeholder="Near…" onChange={set('dropLandmark')} /></label>
+          <label style={{ flex: 1 }}>Pincode<input inputMode="numeric" onChange={set('dropPincode')} /></label>
         </div>
-        <LocationInput value={pin} onChange={setPin} label="Delivery location pin" />
-        <div className="form two">
-          <label>What is it?<input required placeholder="e.g. Cake box, 2 kurtas" onChange={set('parcelDescription')} /></label>
-          <label>Weight (kg)<input required type="number" step="0.1" min="0.1" max="20" value={f.weightKg} onChange={set('weightKg')} /><span className="hint">Bike limit: 20 kg, must fit a 45×35×35 cm box.</span></label>
-          <label>Parcel value (₹)<input required type="number" min="0" onChange={set('value')} />{Number(f.value) > 5000 && <span className="hint" style={{ color: 'var(--warn)' }}>Liability is capped at ₹5,000. Use your own insurance for more cover.</span>}</label>
+        <LocationInput value={pin} onChange={setPin} label="Delivery pin" />
+        <label>What&apos;s in the parcel<input required placeholder="Kurta set, cake box…" onChange={set('parcelDescription')} /></label>
+        <div className="row">
+          <label style={{ flex: 1 }}>Weight (kg)<input required type="number" step="0.1" min="0.1" max="20" value={f.weightKg} onChange={set('weightKg')} /></label>
+          <label style={{ flex: 1 }}>Value (₹)<input required type="number" min="0" onChange={set('value')} /></label>
         </div>
-        <button type="button" className="link" onClick={() => setMore(!more)}>{more ? 'Hide' : 'More options'} (size, fragile, instructions, your reference)</button>
-        {more && (
-          <div className="form two">
-            <label>Length (cm)<input type="number" onChange={set('lengthCm')} /></label>
-            <label>Width (cm)<input type="number" onChange={set('widthCm')} /></label>
-            <label>Height (cm)<input type="number" onChange={set('heightCm')} /></label>
-            <label>Your order reference<input onChange={set('businessReferenceId')} /></label>
-            <label>Instructions for rider<input onChange={set('specialInstructions')} /></label>
-            <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} onChange={set('isFragile')} /> Fragile (pack with protection)</label>
+        <p className="note" style={{ margin: 0 }}>Max 20 kg, must fit a 45×35×35 cm bike box. Liability capped at ₹5,000.</p>
+        {addresses.length > 1 && (
+          <label>Pickup from<div className="chips">{addresses.map((a) => <button type="button" key={a.id} className={`chip ${f.pickupAddressId === a.id ? 'on' : ''}`} onClick={() => setF({ ...f, pickupAddressId: a.id })}>{a.label}</button>)}</div></label>
+        )}
+        <div className="row">
+          <label className="check"><input type="checkbox" onChange={set('isFragile')} />Fragile</label>
+          {!note && <button type="button" className="link" onClick={() => setNote(true)}>+ Note for rider</button>}
+        </div>
+        {note && <div className="form two"><label>Note for rider<input onChange={set('specialInstructions')} /></label><label>Your order reference <span className="hint">optional</span><input onChange={set('businessReferenceId')} /></label></div>}
+        {short ? (
+          <div className="card" style={{ borderColor: 'var(--bad)' }}>
+            <b className="bad-t">Recharge {rupees(quote.requiredAvailable - quote.walletAvailable)} to create this order</b>
+            <p className="small" style={{ margin: '6px 0' }}>Your wallet has {rupees(quote.walletAvailable)}. Orders are blocked below {rupees(quote.requiredAvailable)} so we never create a delivery you can&apos;t pay for.</p>
+            <Link className="btn big" href="/business/wallet/recharge">Recharge wallet</Link>
+          </div>
+        ) : (
+          <div className="card soft row between">
+            <span><b>Delivery fee {rupees(quote?.deliveryFee)}</b><div className="small muted">{rupees(quote?.undeliveredTotal)} is held when a rider accepts; {rupees(quote?.returnFee)} comes back on delivery. If the customer can&apos;t be reached, the {rupees(quote?.returnFee)} pays for the return.</div></span>
           </div>
         )}
-        <Card>
-          <div className="row between">
-            <div>
-              <div><b>Delivery fee {rupees(quote?.deliveryFee)}</b> <span className="muted">charged when the rider picks up</span></div>
-              <div className="muted small">{rupees(quote?.undeliveredTotal)} is held when a rider accepts; {rupees(quote?.returnFee)} of it comes back once delivered, or is charged as the return if the customer can't be reached. Wallet available: {rupees(quote?.walletAvailable)}.</div>
-              {quote?.message && <div className="small" style={{ color: 'var(--bad)' }}>{quote.message}</div>}
-            </div>
-            <div className="row">
-              <button type="button" className="secondary" disabled={busy || quote?.canCreate === false} onClick={() => submit(false)}>Save, not packed yet</button>
-              <button disabled={busy || quote?.canCreate === false}>{busy ? 'Creating…' : 'Create & mark Ready'}</button>
-            </div>
-          </div>
-          {quote?.message && <div className="alert warn" style={{ marginTop: 12 }}><span>{quote.message}</span><Link className="btn secondary" href="/business/wallet">Recharge</Link></div>}
-        </Card>
-        <p className="muted small">Mark Ready only when the parcel is packed, sealed and labelled with the order code, customer name and phone. We look for a rider only after Ready.</p>
+        <button className="big" disabled={busy || !quote?.canCreate}>{busy ? 'Creating…' : 'Create order'}</button>
       </form>
     </>
   );

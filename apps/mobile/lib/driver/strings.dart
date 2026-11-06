@@ -2,7 +2,7 @@
 class S {
   static String lang = 'hi';
   static const _t = <String, Map<String, String>>{
-    'appTitle': {'en': 'QuickDeliver Rider', 'hi': 'क्विकडिलीवर राइडर'},
+    'appTitle': {'en': 'Tweniee Partner', 'hi': 'ट्वेनी पार्टनर'},
     'phone': {'en': 'Mobile number', 'hi': 'मोबाइल नंबर'},
     'getOtp': {'en': 'Get OTP', 'hi': 'OTP पाएं'},
     'enterOtp': {'en': 'Enter the 6 digit code', 'hi': '6 अंकों का कोड डालें'},
@@ -48,6 +48,8 @@ class S {
     'reason': {'en': 'Reason', 'hi': 'कारण'},
   };
   static String t(String k) => _t[k]?[lang] ?? _t[k]?['en'] ?? k;
+  /// Inline pair for one-off copy: S.l('Go online', 'ऑनलाइन जाएं').
+  static String l(String en, String hi) => lang == 'hi' ? hi : en;
 }
 
 const undeliveredReasons = {
@@ -56,7 +58,7 @@ const undeliveredReasons = {
   'WRONG_ADDRESS': {'en': 'Wrong address', 'hi': 'गलत पता'},
   'OTP_NOT_PROVIDED': {'en': 'OTP not provided', 'hi': 'OTP नहीं दिया'},
   'CUSTOMER_ASKED_TO_RETURN': {'en': 'Customer asked to return', 'hi': 'ग्राहक ने वापस करने को कहा'},
-  'RIDER_COULD_NOT_FIND_LOCATION': {'en': 'Could not find location', 'hi': 'लोकेशन नहीं मिली'},
+  'RIDER_COULD_NOT_FIND_LOCATION': {'en': "Couldn't find location", 'hi': 'लोकेशन नहीं मिली'},
 };
 
 const refuseReasons = {

@@ -67,7 +67,7 @@ export class OnboardingService {
     const url = `${config.publicWebUrl}/onboard/${token}`;
     await this.notify.sendSmsAndWhatsapp({
       to: d.phone, template: 'DRIVER_ONBOARDING_LINK', secret: token,
-      body: `Hi ${d.name}, complete your Quick Delivery partner signup here: ${url} . Link valid for ${config.onboardingLinkHours} hours. Do not share it.`,
+      body: `Hi ${d.name}, complete your Tweniee partner signup here: ${url} . Link valid for ${config.onboardingLinkHours} hours. Do not share it.`,
     });
     // URL returned to staff so they can also share it in person; it is per-driver and single-use.
     return { onboardingUrl: url, expiresAt };
@@ -85,6 +85,7 @@ export class OnboardingService {
 
   async describe(token: string) {
     const link = await this.validLink(token);
+    if (!link.openedAt) await this.prisma.onboardingLink.update({ where: { id: link.id }, data: { openedAt: new Date() } });
     return {
       name: link.driver.name,
       phoneMasked: maskPhone(link.driver.phone),

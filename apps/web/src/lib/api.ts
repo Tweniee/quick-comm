@@ -61,3 +61,28 @@ export const STATUS_LABEL: Record<string, string> = {
   OUT_FOR_DELIVERY: 'Out for Delivery', ARRIVED: 'Arrived', DELIVERED: 'Delivered', UNDELIVERED: 'Undelivered',
   RETURNING: 'Returning', RETURNED: 'Returned', CANCELLED: 'Cancelled',
 };
+
+/** "3:41 pm" */
+export const tm = (d?: string | Date | null) =>
+  d ? new Date(d).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase() : '—';
+
+/** "22 min", "5 h", "1 day" since a time. */
+export const ago = (d?: string | Date | null) => {
+  if (!d) return '—';
+  const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));
+  if (m < 60) return `${m} min`;
+  if (m < 1440) return `${Math.round(m / 60)} h`;
+  const days = Math.round(m / 1440);
+  return `${days} day${days > 1 ? 's' : ''}`;
+};
+
+export const dateOnly = (d?: string | Date | null) =>
+  d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+export const LEDGER_LABEL: Record<string, string> = {
+  RECHARGE: 'Recharge', HOLD: 'Held', RELEASE: 'Hold released', FORWARD_CHARGE: 'Forward', RETURN_CHARGE: 'Return',
+  CREDIT: 'Credit', REFUND: 'Refund', DEBIT_ADJUSTMENT: 'Adjustment',
+};
+/** +1 adds to the balance, -1 takes from it, 0 only moves money in or out of "held". Ledger amounts are stored positive. */
+export const ledgerSign = (type: string) => (['RECHARGE', 'CREDIT', 'REFUND'].includes(type) ? 1 : ['FORWARD_CHARGE', 'RETURN_CHARGE', 'DEBIT_ADJUSTMENT'].includes(type) ? -1 : 0);
+export const ledgerAmount = (type: string, amount: number) => { const s = ledgerSign(type); return `${s > 0 ? '+' : s < 0 ? '−' : ''}${rupees(Math.abs(amount))}`; };

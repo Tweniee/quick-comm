@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, CurrentUser } from '../auth/auth.guard';
 import { Principal } from '../auth/auth.types';
 import { AppError } from '../common/errors';
-import { AddressDto, ApiKeyDto, ProfileDto, SignupDto, WebhookDto } from './businesses.dto';
+import { ActiveDto, AddressDto, ApiKeyDto, ProfileDto, SignupDto, TeamUserDto, VerifyContactDto, WebhookDto } from './businesses.dto';
 import { BusinessesService } from './businesses.service';
 
 @Controller('business')
@@ -12,6 +12,12 @@ export class BusinessesController {
 
   @Post('signup') signup(@Body() b: SignupDto) { return this.svc.signup(b); }
 
+  @Post('verify-contact') @Auth('business', ['OWNER']) verify(@CurrentUser() u: Principal, @Body() b: VerifyContactDto) { return this.svc.verifyContact(u.businessId!, b.phoneCode, b.emailCode); }
+  @Post('verify-contact/resend') @Auth('business', ['OWNER']) resend(@CurrentUser() u: Principal) { return this.svc.resendContactCodes(u.businessId!); }
+  @Post('submit-for-review') @Auth('business', ['OWNER']) submit(@CurrentUser() u: Principal) { return this.svc.submitForReview(u.businessId!); }
+  @Get('users') @Auth('business') users(@CurrentUser() u: Principal) { return this.svc.listUsers(u.businessId!); }
+  @Post('users') @Auth('business', ['OWNER']) addUser(@CurrentUser() u: Principal, @Body() b: TeamUserDto) { return this.svc.addUser(u.businessId!, u.sub, b); }
+  @Post('users/:id/active') @Auth('business', ['OWNER']) userActive(@CurrentUser() u: Principal, @Param('id') id: string, @Body() b: ActiveDto) { return this.svc.setUserActive(u.businessId!, u.sub, id, b.active); }
   @Get('me') @Auth('business') me(@CurrentUser() u: Principal) { return this.svc.me(u.businessId!); }
   @Patch('me') @Auth('business', ['OWNER']) update(@CurrentUser() u: Principal, @Body() b: ProfileDto) { return this.svc.updateProfile(u.businessId!, b); }
 

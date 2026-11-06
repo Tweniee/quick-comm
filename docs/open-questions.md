@@ -17,13 +17,13 @@ Abhishek answered the 17 build questions on 6 Nov 2026. This page records each a
 
 ## Product
 10. **Launch city: open.** Indore is only the sample seed so the app runs. Change it in Admin → Cities once the real city is picked.
-11. **Business signup OTP: decided, waiting on the SMS provider.** Until then, manual staff review is the gate, and no unverified business can create orders.
+11. **Business signup OTP: built, waiting on the SMS provider.** Signup now asks for a phone code and an email code (`POST /business/verify-contact`). Until an SMS/email provider is picked, codes go through the stub provider and are shown on screen in development. Manual staff review is still the gate, and no unverified business can create orders.
 12. **Express KYC: decided.** Manual review only for now. Signzy, IDfy or Karza can be added later.
 13. **Return confirmation: decided.** A 4-digit return code is shown to the business. The rider enters it, or the business taps "I received it".
 14. **Wait rule: decided.** "Customer not reachable", "Wrong address" and "Could not find location" need a 15-minute wait and at least 2 logged calls. "Customer refused", "OTP not provided" and "Customer asked to return" need no wait.
 15. **Assignment retries: decided.** The business gets 1 manual retry after "No rider", support can retry more, and unassigned Ready orders auto-cancel at day end.
 16. **Inactive riders: built.** After 30 days with no delivery since approval or the last check-in, a rider is paused when they try to go online, and a 6-hourly job pauses offline riders too. Either way a support ticket opens. Support calls the rider, re-checks DL, RC and bank details, then presses Reactivate, which counts as the check-in (`drivers.service.ts` `isInactive`, `JobsService.inactiveRiders`).
-17. **App names: working names in place.** The apps are called **QuickDeliver Business** and **QuickDeliver Rider** for now. The final names, icons and Play Store package names are still needed from the founder.
+17. **App names: from the Tweniee design.** The apps are called **Tweniee Business** and **Tweniee Partner** (driver). The final names, icons and Play Store package names are still needed from the founder.
 
 ## Vendors to pick (Phase 0)
 

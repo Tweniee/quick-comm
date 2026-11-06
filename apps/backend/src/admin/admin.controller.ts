@@ -16,9 +16,10 @@ import { WalletService } from '../wallet/wallet.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { AdminBusinessService } from './admin-business.service';
 import { AdminService } from './admin.service';
+import { AdminViewsService } from './admin-views.service';
 
 class ReasonDto { @IsOptional() @IsString() reason?: string; }
-class BusinessReviewDto extends ReasonDto { @IsIn(['APPROVE', 'REJECT', 'SUSPEND', 'REACTIVATE']) action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'REACTIVATE'; }
+class BusinessReviewDto extends ReasonDto { @IsIn(['APPROVE', 'REJECT', 'SUSPEND', 'REACTIVATE', 'REQUEST_REUPLOAD']) action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'REACTIVATE' | 'REQUEST_REUPLOAD'; }
 class DriverReviewDto extends ReasonDto {
   @IsIn(['APPROVE', 'REJECT', 'REQUEST_REUPLOAD', 'SUSPEND', 'BLOCK', 'PAUSE', 'REACTIVATE']) action: 'APPROVE' | 'REJECT' | 'REQUEST_REUPLOAD' | 'SUSPEND' | 'BLOCK' | 'PAUSE' | 'REACTIVATE';
   @IsOptional() @IsString() dlExpiry?: string;
@@ -50,11 +51,20 @@ export class AdminController {
     private support: SupportService,
     private payouts: PayoutsService,
     private webhooks: WebhooksService,
+    private views: AdminViewsService,
   ) {}
 
   @Get('me') me(@CurrentUser() u: Principal) { return u; }
   @Get('dashboard') dashboard(@Query('cityId') cityId?: string) { return this.admin.dashboard(cityId); }
   @Get('live-map') liveMap(@Query('cityId') cityId?: string) { return this.admin.liveMap(cityId); }
+  @Get('views/orders') vOrders(@Query() q: Record<string, string>) { return this.views.orders(q); }
+  @Get('views/businesses') vBusinesses(@Query() q: Record<string, string>) { return this.views.businesses(q); }
+  @Get('views/businesses/:id/stats') vBizStats(@Param('id') id: string) { return this.views.businessStats(id); }
+  @Get('views/api') vApi() { return this.views.apiKeys(); }
+  @Get('views/onboarding') vOnboarding() { return this.views.onboarding(); }
+  @Get('views/drivers') vDrivers(@Query() q: Record<string, string>) { return this.views.drivers(q); }
+  @Get('views/audit') vAudit(@Query() q: Record<string, string>) { return this.views.audit(q); }
+  @Get('views/attention') vAttention() { return this.views.attention(); }
   @Get('search') search(@Query('q') q = '') { return this.admin.search(q); }
 
   // ── Businesses ──

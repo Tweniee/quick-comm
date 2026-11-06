@@ -31,6 +31,7 @@ class PricingDto {
   @IsOptional() @IsInt() maxRechargeAmount?: number;
   @IsOptional() @IsInt() lowBalanceWarnAt?: number;
   @IsOptional() @IsString() effectiveFrom?: string;
+  @IsOptional() @IsString() reason?: string;
 }
 
 /** Public: list active cities for signup forms. */

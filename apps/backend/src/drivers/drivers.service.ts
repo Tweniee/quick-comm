@@ -37,6 +37,22 @@ export async function pauseForCheckIn(prisma: PrismaService, d: { id: string; st
 export class DriversService {
   constructor(private prisma: PrismaService, private audit: AuditService, private notify: NotificationsService, private docs: DocumentsService) {}
 
+  /** D14: the rider's own documents with expiry and review state. */
+  async documentsView(driverId: string) {
+    const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId }, include: { documents: { orderBy: { createdAt: 'desc' } } } });
+    const now = Date.now();
+    const latest = (k: string) => d.documents.find((x) => x.kind === k);
+    const state = (k: string) => { const x = latest(k); return !x ? 'MISSING' : x.status === 'REUPLOAD_REQUESTED' ? 'REUPLOAD' : x.note?.startsWith('RENEWAL') ? 'IN_REVIEW' : d.status === 'APPROVED' || d.status === 'PAUSED' ? 'APPROVED' : 'SUBMITTED'; };
+    const days = (x: Date | null) => (x ? Math.floor((x.getTime() - now) / DAY) : null);
+    return [
+      { key: 'RC', title: 'Vehicle RC', detail: d.vehicleNumber, expiresAt: d.rcExpiry, daysLeft: days(d.rcExpiry), state: state('RC_FRONT'), renewKind: 'RC_FRONT' },
+      { key: 'DL', title: 'Driving Licence', detail: null, expiresAt: d.dlExpiry, daysLeft: days(d.dlExpiry), state: state('DL_FRONT'), renewKind: 'DL_FRONT' },
+      { key: 'AADHAAR', title: 'Aadhaar', detail: d.aadhaarLast4 ? `XXXX XXXX ${d.aadhaarLast4}` : null, expiresAt: null, daysLeft: null, state: state('AADHAAR_FRONT') },
+      { key: 'BANK', title: 'Bank account', detail: d.bankAccountLast4 ? `•••• ${d.bankAccountLast4}` : null, expiresAt: null, daysLeft: null, state: state('BANK_PROOF') },
+      { key: 'BIKE', title: 'Bike photo', detail: 'Plate visible', expiresAt: null, daysLeft: null, state: state('BIKE_PHOTO') },
+    ].sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999));
+  }
+
   async me(driverId: string) {
     const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId } });
     const now = Date.now();
@@ -105,7 +121,16 @@ export class DriversService {
     ]);
     const codes = await this.prisma.order.findMany({ where: { id: { in: recent.map((r) => r.orderId) } }, select: { id: true, code: true } });
     const codeById = new Map(codes.map((c) => [c.id, c.code]));
+    const weekLegs = await this.prisma.driverEarning.groupBy({ by: ['leg'], where: { driverId, createdAt: { gte: startOfWeek } }, _count: true, _sum: { amount: true } });
+    const leg = (l: string) => weekLegs.find((x) => x.leg === l);
+    const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId }, select: { bankAccountLast4: true, ifsc: true } });
     return {
+      week: {
+        deliveries: leg('DELIVERY')?._count ?? 0, deliveryAmount: leg('DELIVERY')?._sum.amount ?? 0,
+        returns: leg('RETURN')?._count ?? 0, returnAmount: leg('RETURN')?._sum.amount ?? 0,
+        adjustments: weekLegs.filter((x) => !['DELIVERY', 'RETURN'].includes(x.leg)).reduce((s, x) => s + (x._sum.amount ?? 0), 0),
+      },
+      bank: d.bankAccountLast4 ? `•••• ${d.bankAccountLast4}` : null,
       today: { amount: today._sum.amount ?? 0, legs: today._count },
       thisWeek: { amount: week._sum.amount ?? 0, legs: week._count },
       unpaid: unpaid._sum.amount ?? 0,
@@ -213,7 +238,7 @@ export class DriversService {
     }
     await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: `DRIVER_${action}`, entity: 'Driver', entityId: id, oldValue: { status: d.status }, newValue: { status: updated.status }, reason });
     const msg: Partial<Record<typeof action, string>> = {
-      APPROVE: 'Your documents are approved, download the QuickDeliver Rider app and go online when you are ready.',
+      APPROVE: 'Your documents are approved, download the Tweniee Partner app and go online when you are ready.',
       REJECT: `Your partner application was not approved: ${reason}.`,
       REQUEST_REUPLOAD: `Please re-upload: ${reason}. Our staff will send you a new link.`,
       SUSPEND: `Your partner account is suspended: ${reason}. You can appeal by calling support.`,

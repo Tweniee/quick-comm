@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ErrorBox } from '@/components/ui';
+import { ErrorBox, Logo } from '@/components/ui';
 import { api, session } from '@/lib/api';
 
 export default function BusinessLogin() {
@@ -13,6 +13,7 @@ export default function BusinessLogin() {
   const [busy, setBusy] = useState(false);
   return (
     <div className="auth">
+      <div className="row" style={{ gap: 10 }}><Logo size="lg" /><b style={{ fontSize: 18 }}>Tweniee Business</b></div>
       <h1>Business login</h1>
       <ErrorBox error={error} />
       <form className="form card" onSubmit={async (e) => {

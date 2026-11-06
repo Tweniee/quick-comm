@@ -113,7 +113,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       include: { driver: true },
     });
     for (const l of links) {
-      await this.notify.send({ channel: 'SMS', to: l.phone, template: 'DRIVER_ONBOARDING_REMINDER', body: `Reminder: your Quick Delivery partner signup link expires at ${l.expiresAt.toISOString()}. Complete it soon.` });
+      await this.notify.send({ channel: 'SMS', to: l.phone, template: 'DRIVER_ONBOARDING_REMINDER', body: `Reminder: your Tweniee partner signup link expires at ${l.expiresAt.toISOString()}. Complete it soon.` });
       await this.prisma.onboardingLink.update({ where: { id: l.id }, data: { reminderSentAt: now } });
     }
     return links.length;

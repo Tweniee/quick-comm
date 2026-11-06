@@ -1,3 +1,4 @@
+import { haversineKm } from '../common/geo';
 import { Driver, Order, OrderTimeline, PickupAddress } from '@prisma/client';
 import { config } from '../common/config';
 import { decrypt, maskPhone } from '../common/crypto';
@@ -69,7 +70,12 @@ export function presentForTracking(o: FullOrder) {
     businessPhone: o.business?.phone,
     status: o.status,
     statusText: plain[o.status],
-    rider: r ? { firstName: r.name.split(' ')[0], phoneMasked: maskPhone(r.phone) } : null,
+    rider: r ? { firstName: r.name.split(' ')[0], initial: r.name.trim()[0]?.toUpperCase() ?? 'R', phoneMasked: maskPhone(r.phone), callPhone: ['OUT_FOR_DELIVERY', 'ARRIVED'].includes(o.status) ? r.phone : null } : null,
+    riderDistanceKm: r && CUSTOMER_LOCATION_VISIBLE.includes(o.status) && r.lastLat != null && r.lastLng != null ? Math.round(haversineKm(r.lastLat, r.lastLng, o.dropLat, o.dropLng) * 10) / 10 : null,
+    times: { assignedAt: o.assignedAt, pickedUpAt: o.pickedUpAt, arrivedAt: o.arrivedAt, deliveredAt: o.deliveredAt, undeliveredAt: o.undeliveredAt },
+    deliveredBy: o.status === 'DELIVERED' && o.driver ? o.driver.name.split(' ')[0] : null,
+    returnInfo: ['UNDELIVERED', 'RETURNING', 'RETURNED'].includes(o.status) ? { riderFirstName: o.driver?.name.split(' ')[0] ?? null, arrivedAt: o.arrivedAt, waitedMinutes: o.arrivedAt && o.undeliveredAt ? Math.round((o.undeliveredAt.getTime() - o.arrivedAt.getTime()) / 60000) : null, reason: o.undeliveredReason } : null,
+    dropArea: o.dropAddress,
     riderLocation: r && CUSTOMER_LOCATION_VISIBLE.includes(o.status) && r.lastLat != null ? { lat: r.lastLat, lng: r.lastLng, at: r.lastLocationAt } : null,
     drop: { lat: o.dropLat, lng: o.dropLng },
     otp: showOtp ? decrypt(o.otpEnc!) : null,
