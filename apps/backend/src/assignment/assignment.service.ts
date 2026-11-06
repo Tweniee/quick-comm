@@ -138,9 +138,9 @@ export class AssignmentService {
       const claimed = await tx.driver.updateMany({ where: { id: driverId, currentOrderId: null, availability: 'ONLINE' }, data: { currentOrderId: o.id, availability: 'BUSY' } });
       if (claimed.count !== 1) throw new AppError('NOT_AVAILABLE', 'Go online to accept jobs', 409);
 
-      // Hold the forward fee. If the wallet cannot cover it, release the rider and stop assignment.
+      // Hold forward + return fee (₹60). If the wallet cannot cover it, release the rider and stop assignment.
       try {
-        await this.wallet.hold(tx, o.businessId, o.id, o.code, o.deliveryFee, offer.id);
+        await this.wallet.hold(tx, o.businessId, o.id, o.code, o.deliveryFee + o.returnFee, offer.id);
       } catch (e) {
         if (e instanceof AppError && e.code === 'INSUFFICIENT_WALLET') return { walletFailed: true as const, orderId: o.id };
         throw e;
@@ -321,7 +321,10 @@ export class AssignmentService {
     await this.prisma.$transaction(async (tx) => {
       await tx.otpEvent.create({ data: { orderId: o.id, kind: 'VERIFY_OK', actorType: 'DRIVER', actorId: driverId } });
       await this.state.transition(tx, o, 'DELIVERED', { type: 'DRIVER', id: driverId }, { ...s, data: flags.length ? { flags: { push: flags } } : {} });
-      if (!o.isTest) await this.earn(tx, driverId, o.id, 'DELIVERY', o.deliveryFee, o.driverSharePct);
+      if (!o.isTest) {
+        await this.earn(tx, driverId, o.id, 'DELIVERY', o.deliveryFee, o.driverSharePct);
+        await this.wallet.release(tx, o.businessId, o.id, o.code, 'delivered, return hold no longer needed');
+      }
       await tx.driver.update({ where: { id: driverId }, data: { currentOrderId: null, availability: 'ONLINE', totalDeliveries: { increment: 1 }, lastDeliveryAt: new Date() } });
     });
     await this.events.emit(o.id, 'DELIVERED');

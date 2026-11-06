@@ -3,6 +3,7 @@ import { OrderStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AuditService } from '../common/audit.service';
 import { AppError, Errors } from '../common/errors';
+import { config } from '../common/config';
 import { PrismaService } from '../common/prisma.service';
 import { normalizePhone } from '../common/phone';
 import { ORDER_INCLUDE } from '../orders/orders.service';
@@ -24,6 +25,28 @@ function p90(xs: number[]) {
 @Injectable()
 export class AdminService {
   constructor(private prisma: PrismaService, private audit: AuditService) {}
+
+  /**
+   * Goodwill credit (₹10) for the rider when support cancels an order after the rider accepted
+   * and had already left for pickup. Manual, never automatic (founder decision #6). Once per order.
+   */
+  async riderGoodwill(orderId: string, adminId: string, reason: string) {
+    if (!reason?.trim()) throw new AppError('REASON_REQUIRED', 'A reason is required', 422);
+    const o = await this.prisma.order.findFirst({ where: { OR: [{ id: orderId }, { code: orderId }] } });
+    if (!o) throw Errors.notFound('Order');
+    if (o.status !== 'CANCELLED' || o.pickedUpAt) throw new AppError('GOODWILL_NOT_ALLOWED', 'Goodwill is only for orders cancelled after a rider accepted and before pickup', 409);
+    const accepted = await this.prisma.assignmentOffer.findFirst({ where: { orderId: o.id, status: 'ACCEPTED' }, orderBy: { respondedAt: 'desc' } });
+    const driverId = accepted?.driverId ?? o.driverId;
+    if (!driverId) throw new AppError('GOODWILL_NOT_ALLOWED', 'No rider had accepted this order', 409);
+    const exists = await this.prisma.driverEarning.findUnique({ where: { orderId_leg: { orderId: o.id, leg: 'GOODWILL' } } });
+    if (exists) throw new AppError('GOODWILL_ALREADY_GIVEN', 'Goodwill was already credited for this order', 409);
+    const amount = config.riderGoodwillPaise;
+    return this.prisma.$transaction(async (tx) => {
+      const e = await tx.driverEarning.create({ data: { driverId, orderId: o.id, leg: 'GOODWILL', grossFee: 0, amount, platform: -amount } });
+      await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: 'RIDER_GOODWILL', entity: 'Order', entityId: o.id, newValue: { driverId, amount }, reason }, tx);
+      return e;
+    });
+  }
 
   async dashboard(cityId?: string) {
     const city = cityId ? { cityId } : {};

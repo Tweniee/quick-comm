@@ -164,6 +164,28 @@ describe('compliance jobs and payouts', () => {
     expect(d.availability).toBe('OFFLINE');
   });
 
+  it('30 days without a delivery: rider must check in before going online again', async () => {
+    const r = await onlineDriver(ctx);
+    await ctx.http().post('/api/driver/availability').set(bearer(r.token)).send({ online: false }).expect(201);
+    await ctx.prisma.driver.update({ where: { id: r.driverId }, data: { approvedAt: new Date(Date.now() - 31 * 86_400_000), lastDeliveryAt: null } });
+    const blocked = await ctx.http().post('/api/driver/availability').set(bearer(r.token)).send({ online: true }).expect(403);
+    expect(blocked.body.error.code).toBe('CHECK_IN_REQUIRED');
+    let d = await ctx.prisma.driver.findUniqueOrThrow({ where: { id: r.driverId } });
+    expect(d.status).toBe('PAUSED');
+    expect(await ctx.prisma.supportTicket.count({ where: { driverId: r.driverId, subject: { contains: 'check-in' } } })).toBe(1);
+    // Support checks in and re-checks documents → Reactivate; the rider can go online again.
+    await ctx.http().post(`/api/admin/drivers/${r.driverId}/review`).set(bearer(ctx.adminToken)).send({ action: 'REACTIVATE' }).expect(201);
+    await ctx.http().post('/api/driver/availability').set(bearer(r.token)).send({ online: true }).expect(201);
+    d = await ctx.prisma.driver.findUniqueOrThrow({ where: { id: r.driverId } });
+    expect(d.lastCheckInAt).not.toBeNull();
+
+    // The background job pauses inactive riders who are offline too, but never one on a live order.
+    const r2 = await onlineDriver(ctx);
+    await ctx.prisma.driver.update({ where: { id: r2.driverId }, data: { approvedAt: new Date(Date.now() - 40 * 86_400_000), lastDeliveryAt: new Date(Date.now() - 35 * 86_400_000) } });
+    expect((await ctx.app.get(JobsService).inactiveRiders()).paused).toBeGreaterThanOrEqual(1);
+    expect((await ctx.prisma.driver.findUniqueOrThrow({ where: { id: r2.driverId } })).status).toBe('PAUSED');
+  });
+
   it('weekly payout bundles unpaid earnings exactly once', async () => {
     const r = await onlineDriver(ctx);
     const lastWeek = new Date(Date.now() - 7 * 86_400_000);

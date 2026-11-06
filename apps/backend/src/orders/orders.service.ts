@@ -63,8 +63,9 @@ export class OrdersService {
       returnFee: p.returnFee,
       undeliveredTotal: p.deliveryFee + p.returnFee,
       walletAvailable: available,
-      canCreate: available >= p.deliveryFee && b.status === 'APPROVED',
-      message: available >= p.deliveryFee ? null : `Recharge ₹${Math.ceil((p.deliveryFee - available) / 100)} to create this order`,
+      requiredAvailable: p.deliveryFee + p.returnFee,
+      canCreate: available >= p.deliveryFee + p.returnFee && b.status === 'APPROVED',
+      message: available >= p.deliveryFee + p.returnFee ? null : `Recharge ₹${Math.ceil((p.deliveryFee + p.returnFee - available) / 100)} to create this order`,
       liabilityCap: config.liabilityCapPaise,
       note: 'No time promise. Inside the city deliveries usually take 30 to 70 minutes from Ready.',
     };
@@ -114,7 +115,7 @@ export class OrdersService {
 
     const pricing = await this.cities.activePricing(b.cityId);
     const available = b.walletBalance - b.walletHeld;
-    if (!opts.isTest && available < pricing.deliveryFee) throw Errors.insufficientWallet(pricing.deliveryFee, available);
+    if (!opts.isTest && available < pricing.deliveryFee + pricing.returnFee) throw Errors.insufficientWallet(pricing.deliveryFee + pricing.returnFee, available);
 
     const warnings: string[] = [];
     if (input.declaredValue > config.liabilityCapPaise) {
@@ -241,7 +242,7 @@ export class OrdersService {
     if (o.city.status === 'PAUSED') throw Errors.cityPaused(o.city.pauseMessage);
     if (!o.isTest) {
       const available = o.business.walletBalance - o.business.walletHeld;
-      if (available < o.deliveryFee) throw Errors.insufficientWallet(o.deliveryFee, available);
+      if (available < o.deliveryFee + o.returnFee) throw Errors.insufficientWallet(o.deliveryFee + o.returnFee, available);
     }
     await this.prisma.$transaction((tx) => this.state.transition(tx, o, 'READY', actor));
     await this.events.emit(o.id, 'READY');

@@ -90,6 +90,9 @@ export class AdminController {
   @Post('orders/:id/cancel') cancel(@Param('id') id: string, @Body() b: CancelDto, @CurrentUser() u: Principal) {
     return this.orders.cancel(null, id, b.reason ?? 'SUPPORT_CANCELLED', { type: 'SUPPORT', id: u.sub }, b.note);
   }
+  @Post('orders/:id/rider-goodwill') @Auth('admin', ['SUPER_ADMIN', 'SUPPORT']) goodwill(@Param('id') id: string, @Body() b: ReasonDto, @CurrentUser() u: Principal) {
+    return this.admin.riderGoodwill(id, u.sub, b.reason ?? '');
+  }
   @Post('orders/:id/reassign') reassign(@Param('id') id: string, @Body() b: ReasonDto, @CurrentUser() u: Principal) { return this.dispatch.supportReassign(id, u.sub, b.reason || 'Reassigned by support'); }
   @Post('orders/:id/retry-assignment') retry(@Param('id') id: string, @CurrentUser() u: Principal) { return this.dispatch.supportRetry(id, u.sub); }
   @Post('orders/:id/unlock-otp') unlock(@Param('id') id: string, @CurrentUser() u: Principal) { return this.dispatch.supportUnlockOtp(id, u.sub); }

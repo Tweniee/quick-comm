@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { config } from '../common/config';
 import { PrismaService } from '../common/prisma.service';
 import { AssignmentService } from '../assignment/assignment.service';
+import { INACTIVE_MESSAGE, isInactive, pauseForCheckIn } from '../drivers/drivers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OrderEventsService } from '../orders/order-events.service';
 import { OrderStateService } from '../orders/order-state.service';
@@ -33,6 +34,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.every('webhooks', 10_000, () => this.webhooks.processDue());
     this.every('day-end', 15 * 60_000, () => this.autoCancelStaleReady());
     this.every('compliance', 60 * 60_000, () => this.documentCompliance());
+    this.every('inactive-riders', 6 * 60 * 60_000, () => this.inactiveRiders());
     this.every('onboarding-reminders', 60 * 60_000, () => this.onboardingReminders());
   }
 
@@ -85,6 +87,20 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
           const sent = await this.prisma.notificationLog.count({ where: { to: d.phone, template, createdAt: { gt: new Date(now.getTime() - DAY) } } });
           if (!sent) await this.notify.send({ channel: 'SMS', to: d.phone, template, body: `Your ${doc} expires in ${days} days. Renew it and upload in the app to keep working.` });
         }
+      }
+    }
+    return { paused };
+  }
+
+  /** Riders with no delivery for 30 days are paused until support checks in and re-checks documents (decision #16). */
+  async inactiveRiders(now = new Date()) {
+    const drivers = await this.prisma.driver.findMany({ where: { status: 'APPROVED', currentOrderId: null } });
+    let paused = 0;
+    for (const d of drivers) {
+      if (!isInactive(d, now)) continue;
+      if (await pauseForCheckIn(this.prisma, d)) {
+        paused++;
+        await this.notify.sendSmsAndWhatsapp({ to: d.phone, template: 'DRIVER_CHECK_IN', body: INACTIVE_MESSAGE });
       }
     }
     return { paused };

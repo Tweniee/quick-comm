@@ -79,7 +79,8 @@ export default function NewOrder() {
           <div className="row between">
             <div>
               <div><b>Delivery fee {rupees(quote?.deliveryFee)}</b> <span className="muted">charged when the rider picks up</span></div>
-              <div className="muted small">If the customer can't be reached: +{rupees(quote?.returnFee)} return, total {rupees(quote?.undeliveredTotal)}. Wallet available: {rupees(quote?.walletAvailable)}.</div>
+              <div className="muted small">{rupees(quote?.undeliveredTotal)} is held when a rider accepts; {rupees(quote?.returnFee)} of it comes back once delivered, or is charged as the return if the customer can't be reached. Wallet available: {rupees(quote?.walletAvailable)}.</div>
+              {quote?.message && <div className="small" style={{ color: 'var(--bad)' }}>{quote.message}</div>}
             </div>
             <div className="row">
               <button type="button" className="secondary" disabled={busy || quote?.canCreate === false} onClick={() => submit(false)}>Save, not packed yet</button>

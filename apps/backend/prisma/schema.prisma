@@ -275,6 +275,7 @@ model Driver {
   approvedAt         DateTime?
   approvedByAdminId  String?
   lastDeliveryAt     DateTime?
+  lastCheckInAt      DateTime? // support check-in after 30 days inactive
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 

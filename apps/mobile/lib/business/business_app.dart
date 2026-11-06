@@ -29,7 +29,7 @@ class _BusinessAppState extends State<BusinessApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         navigatorKey: navKey,
-        title: 'Quick Delivery Business',
+        title: 'QuickDeliver Business',
         theme: appTheme(),
         home: loading ? const Scaffold(body: Center(child: CircularProgressIndicator())) : bizApi.isLoggedIn ? const BizHome() : const BizLogin(),
       );
@@ -47,7 +47,7 @@ class _BizLoginState extends State<BizLogin> {
   bool busy = false;
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Quick Delivery Business')),
+        appBar: AppBar(title: const Text('QuickDeliver Business')),
         body: ListView(padding: const EdgeInsets.all(20), children: [
           TextField(controller: login, decoration: const InputDecoration(labelText: 'Phone or email')),
           const SizedBox(height: 12),
@@ -237,7 +237,7 @@ class _CreateOrderState extends State<CreateOrder> {
         SwitchListTile(value: fragile, onChanged: (v) => setState(() => fragile = v), title: const Text('Fragile')),
         Card(child: ListTile(
           title: Text('Delivery fee ${rupees(quote?['deliveryFee'] as num?)}'),
-          subtitle: Text(quote?['message'] as String? ?? 'If returned: +${rupees(quote?['returnFee'] as num?)}, total ${rupees(quote?['undeliveredTotal'] as num?)}. Wallet ${rupees(quote?['walletAvailable'] as num?)}.'),
+          subtitle: Text(quote?['message'] as String? ?? '${rupees(quote?['undeliveredTotal'] as num?)} held when a rider accepts; ${rupees(quote?['returnFee'] as num?)} comes back once delivered. Wallet ${rupees(quote?['walletAvailable'] as num?)}.'),
         )),
         const SizedBox(height: 8),
         ElevatedButton(onPressed: busy || !canCreate ? null : () => _submit(true), child: const Text('Create & mark Ready')),

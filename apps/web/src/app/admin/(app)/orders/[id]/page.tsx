@@ -31,6 +31,7 @@ export default function AdminOrder({ params }: { params: { id: string } }) {
         {o.status === 'NO_RIDER' && <button onClick={() => act('retry-assignment')}>Retry assignment</button>}
         {['ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED'].includes(o.status) && <button className="secondary" onClick={() => act('resend-otp')}>Resend OTP to customer</button>}
         {o.otp.locked && <button onClick={() => act('unlock-otp', {}, 'Have you verified the customer by phone? This unlocks OTP entry and resends it.')}>Unlock OTP</button>}
+        {o.status === 'CANCELLED' && !o.times?.pickedUpAt && <button className="secondary" onClick={() => act('rider-goodwill', { reason: prompt('Why? e.g. rider had already left for pickup') ?? '' }, 'Credit ₹10 goodwill to the rider who accepted this order? Only once per order.')}>Rider goodwill ₹10</button>}
         {o.status === 'RETURNING' && <button className="secondary" onClick={() => act('force-return-complete', {}, 'Mark returned to business? Use only with confirmation from the business.')}>Mark returned</button>}
       </div>
 

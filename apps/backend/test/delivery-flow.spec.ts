@@ -32,7 +32,7 @@ describe('happy path: create → ready → assign → pickup → OTP → deliver
     expect(job.body.status).toBe('ASSIGNED');
     let w = await wallet(biz.token);
     expect(w.balance).toBe(100000);
-    expect(w.held).toBe(3500);
+    expect(w.held).toBe(6000); // ₹35 delivery + ₹25 possible return
 
     // Business view: OTP status only, never the value.
     const view = await ctx.http().get(`/api/business/orders/${orderId}`).set(bearer(biz.token)).expect(200);
@@ -53,7 +53,7 @@ describe('happy path: create → ready → assign → pickup → OTP → deliver
     await ctx.http().post(`/api/driver/orders/${orderId}/pickup`).set(bearer(rider.token)).send({ lat: 22.7185, lng: 75.8571 }).expect(201);
     w = await wallet(biz.token);
     expect(w.balance).toBe(96500);
-    expect(w.held).toBe(0);
+    expect(w.held).toBe(2500); // return part stays held until delivered
 
     // Pickup replay (offline queue) must not double charge.
     await ctx.http().post(`/api/driver/orders/${orderId}/pickup`).set(bearer(rider.token)).send({}).expect(201);
@@ -68,7 +68,11 @@ describe('happy path: create → ready → assign → pickup → OTP → deliver
     const done = await ctx.http().get(`/api/business/orders/${orderId}`).set(bearer(biz.token)).expect(200);
     expect(done.body.status).toBe('DELIVERED');
     expect(done.body.timeline.map((t: { status: string }) => t.status)).toEqual(['CREATED', 'READY', 'ASSIGNING', 'ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'ARRIVED', 'DELIVERED']);
-    expect((await wallet(biz.token)).balance).toBe(96500);
+    w = await wallet(biz.token);
+    expect(w.balance).toBe(96500);
+    expect(w.held).toBe(0); // ₹25 return hold released on delivery
+    const dLedger = await ctx.prisma.walletLedger.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
+    expect(dLedger.map((l) => [l.type, l.amount])).toEqual([['HOLD', 6000], ['FORWARD_CHARGE', 3500], ['RELEASE', 2500]]);
 
     const earnings = await ctx.prisma.driverEarning.findMany({ where: { orderId } });
     expect(earnings).toEqual([expect.objectContaining({ leg: 'DELIVERY', amount: 2800, platform: 700 })]);
@@ -119,7 +123,9 @@ describe('undelivered → return: ₹60 total, rider ₹48', () => {
     await ctx.prisma.order.update({ where: { id: orderId }, data: { arrivedAt: new Date(Date.now() - 16 * 60_000) } });
     const und = await ctx.http().post(`/api/driver/orders/${orderId}/undelivered`).set(bearer(rider.token)).send({ reason: 'CUSTOMER_NOT_REACHABLE', ...DROP }).expect(201);
     expect(und.body.status).toBe('RETURNING');
-    expect((await wallet(biz.token)).balance).toBe(100000 - 6000);
+    const wu = await wallet(biz.token);
+    expect(wu.balance).toBe(100000 - 6000);
+    expect(wu.held).toBe(0);
 
     const bizView = await ctx.http().get(`/api/business/orders/${orderId}`).set(bearer(biz.token)).expect(200);
     expect(bizView.body.returnOtp).toMatch(/^\d{4}$/);
@@ -130,7 +136,7 @@ describe('undelivered → return: ₹60 total, rider ₹48', () => {
     expect(earnings.reduce((s, e) => s + e.amount, 0)).toBe(4800);
     expect(earnings.reduce((s, e) => s + e.platform, 0)).toBe(1200);
     const ledger = await ctx.prisma.walletLedger.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
-    expect(ledger.map((l) => [l.type, l.amount])).toEqual([['HOLD', 3500], ['FORWARD_CHARGE', 3500], ['RETURN_CHARGE', 2500]]);
+    expect(ledger.map((l) => [l.type, l.amount])).toEqual([['HOLD', 6000], ['FORWARD_CHARGE', 3500], ['RETURN_CHARGE', 2500]]);
     expect((await ctx.http().get(`/api/business/orders/${orderId}`).set(bearer(biz.token))).body.status).toBe('RETURNED');
   });
 
@@ -198,6 +204,13 @@ describe('assignment', () => {
     expect(w.held).toBe(0);
     expect(w.balance).toBe(100000);
     expect((await ctx.prisma.driver.findUniqueOrThrow({ where: { id: rider.driverId } })).currentOrderId).toBeNull();
+
+    // Goodwill ₹10 is manual: needs a reason, credited once to the rider who accepted.
+    await ctx.http().post(`/api/admin/orders/${orderId}/rider-goodwill`).set(bearer(ctx.adminToken)).send({}).expect(422);
+    await ctx.http().post(`/api/admin/orders/${orderId}/rider-goodwill`).set(bearer(ctx.adminToken)).send({ reason: 'Rider had left for pickup' }).expect(201);
+    await ctx.http().post(`/api/admin/orders/${orderId}/rider-goodwill`).set(bearer(ctx.adminToken)).send({ reason: 'again' }).expect(409);
+    const gw = await ctx.prisma.driverEarning.findMany({ where: { orderId } });
+    expect(gw).toEqual([expect.objectContaining({ driverId: rider.driverId, leg: 'GOODWILL', amount: 1000 })]);
   });
 });
 
@@ -207,6 +220,11 @@ describe('order creation rules', () => {
     const poor = await approvedBusiness(ctx, 0);
     const insufficient = await ctx.http().post('/api/business/orders').set(bearer(poor.token)).send(orderBody()).expect(402);
     expect(insufficient.body.error).toMatchObject({ code: 'INSUFFICIENT_WALLET', nextAction: 'RECHARGE' });
+    // ₹50 covers the ₹35 delivery but not the ₹60 (delivery + return) the order needs.
+    const fifty = await approvedBusiness(ctx, 0);
+    await ctx.prisma.business.update({ where: { id: fifty.businessId }, data: { walletBalance: 5000 } });
+    const short = await ctx.http().post('/api/business/orders').set(bearer(fifty.token)).send(orderBody()).expect(402);
+    expect(short.body.error.details).toMatchObject({ needed: 6000, available: 5000 });
     expect((await ctx.http().post('/api/business/orders').set(bearer(funded.token)).send(orderBody({ dropLat: 23.5, dropLng: 77.4 })).expect(422)).body.error.code).toBe('OUTSIDE_SERVICE_AREA');
     expect((await ctx.http().post('/api/business/orders').set(bearer(funded.token)).send(orderBody({ weightGrams: 20001 })).expect(422)).body.error.code).toBe('OVERWEIGHT');
     expect((await ctx.http().post('/api/business/orders').set(bearer(funded.token)).send(orderBody({ lengthCm: 80, widthCm: 30, heightCm: 30 })).expect(422)).body.error.code).toBe('OVERSIZE');
