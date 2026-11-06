@@ -1,0 +1,8 @@
+packages:
+  - apps/backend
+  - apps/web
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - '@nestjs/core'

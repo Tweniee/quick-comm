@@ -1,0 +1,632 @@
+// Quick Delivery — system of record.
+// All money is stored in paise (integer). ₹35 = 3500.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Cities & pricing ─────────────────────────────
+
+enum CityStatus {
+  ACTIVE
+  PAUSED
+}
+
+model City {
+  id            String     @id @default(cuid())
+  name          String     @unique
+  centerLat     Float
+  centerLng     Float
+  radiusKm      Float      @default(22.5) // 45 km diameter
+  status        CityStatus @default(ACTIVE)
+  pauseMessage  String?
+  opensAt       String     @default("09:00") // local HH:mm
+  closesAt      String     @default("21:00")
+  timezone      String     @default("Asia/Kolkata")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  pricing    PricingConfig[]
+  businesses Business[]
+  drivers    Driver[]
+  orders     Order[]
+}
+
+model PricingConfig {
+  id                 String    @id @default(cuid())
+  cityId             String
+  city               City      @relation(fields: [cityId], references: [id])
+  deliveryFee        Int // paise
+  returnFee          Int // paise
+  driverSharePct     Int       @default(80)
+  minRechargeAmount  Int       @default(50000)
+  maxRechargeAmount  Int       @default(5000000)
+  lowBalanceWarnAt   Int       @default(20000)
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  setByAdminId       String?
+  createdAt          DateTime  @default(now())
+
+  @@index([cityId, effectiveFrom])
+}
+
+// ───────────────────────────── Staff / admin ─────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  SUPPORT
+  STAFF
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorType String // ADMIN | BUSINESS | DRIVER | SYSTEM
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  reason    String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// ───────────────────────────── Businesses ─────────────────────────────
+
+enum BusinessType {
+  INDIVIDUAL
+  SOLE_PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Business {
+  id                 String             @id @default(cuid())
+  cityId             String
+  city               City               @relation(fields: [cityId], references: [id])
+  name               String
+  type               BusinessType
+  ownerName          String
+  phone              String             @unique
+  email              String             @unique
+  gstin              String?
+  pan                String?
+  category           String?
+  website            String?
+  instagram          String?
+  googleProfile      String?
+  billingAddress     String?
+  status             VerificationStatus @default(PENDING)
+  statusReason       String?
+  rejectionCount     Int                @default(0)
+  flaggedForReview   Boolean            @default(false)
+  termsAcceptedAt    DateTime?
+  // Wallet (single wallet per business, shared by branches)
+  walletBalance      Int                @default(0) // paise, can go negative only via return charge
+  walletHeld         Int                @default(0) // paise held for assigned-but-not-picked orders
+  // API
+  apiEnabled         Boolean            @default(false)
+  rateLimitPerMin    Int                @default(100)
+  rateLimitPerDay    Int                @default(10000)
+  webhookUrl         String?
+  webhookSecret      String?
+  verifiedAt         DateTime?
+  verifiedByAdminId  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  users      BusinessUser[]
+  addresses  PickupAddress[]
+  documents  Document[]
+  orders     Order[]
+  ledger     WalletLedger[]
+  apiKeys    ApiKey[]
+  recharges  Recharge[]
+  tickets    SupportTicket[]
+}
+
+enum BusinessUserRole {
+  OWNER
+  STAFF
+}
+
+model BusinessUser {
+  id           String           @id @default(cuid())
+  businessId   String
+  business     Business         @relation(fields: [businessId], references: [id])
+  name         String
+  phone        String           @unique
+  email        String?          @unique
+  passwordHash String
+  role         BusinessUserRole @default(OWNER)
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+}
+
+model PickupAddress {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  label      String
+  address    String
+  landmark   String?
+  pincode    String
+  lat        Float
+  lng        Float
+  contactPhone String?
+  isDefault  Boolean  @default(false)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  orders Order[]
+}
+
+// ───────────────────────────── Documents (private storage) ─────────────────────────────
+
+model Document {
+  id          String    @id @default(cuid())
+  ownerType   String // BUSINESS | DRIVER | ORDER
+  businessId  String?
+  business    Business? @relation(fields: [businessId], references: [id])
+  driverId    String?
+  driver      Driver?   @relation(fields: [driverId], references: [id])
+  orderId     String?
+  kind        String // DL_FRONT, DL_BACK, RC_FRONT, AADHAAR_FRONT, SELFIE, BIKE_PHOTO, BANK_PROOF, SHOP_PHOTO, GST_CERT, PAN, PICKUP_PHOTO, RETURN_PHOTO ...
+  storageKey  String
+  mimeType    String
+  sizeBytes   Int
+  status      String    @default("SUBMITTED") // SUBMITTED | ACCEPTED | REUPLOAD_REQUESTED
+  note        String?
+  createdAt   DateTime  @default(now())
+
+  views DocumentView[]
+
+  @@index([driverId])
+  @@index([businessId])
+}
+
+model DocumentView {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  viewerType String
+  viewerId   String
+  createdAt  DateTime @default(now())
+}
+
+// ───────────────────────────── Drivers ─────────────────────────────
+
+enum DriverStatus {
+  INVITED // staff created record, link sent
+  SUBMITTED // driver submitted documents, awaiting support review
+  APPROVED
+  REJECTED
+  PAUSED // expired document or support investigation
+  SUSPENDED
+  BLOCKED
+}
+
+enum DriverAvailability {
+  OFFLINE
+  ONLINE
+  BUSY
+}
+
+model Driver {
+  id                 String             @id @default(cuid())
+  cityId             String
+  city               City               @relation(fields: [cityId], references: [id])
+  name               String
+  phone              String             @unique
+  source             String? // ZOMATO | SWIGGY | INSTAMART | OTHER
+  dob                DateTime?
+  address            String?
+  emergencyContact   String?
+  dlNumber           String?            @unique
+  dlExpiry           DateTime?
+  rcNumber           String?
+  rcExpiry           DateTime?
+  vehicleNumber      String?
+  vehicleType        String?
+  bikeModel          String?
+  aadhaarHash        String?            @unique // sha256 for duplicate checks
+  aadhaarLast4       String?
+  bankAccountEnc     String? // encrypted
+  bankAccountLast4   String?
+  ifsc               String?
+  accountHolderName  String?
+  status             DriverStatus       @default(INVITED)
+  statusReason       String?
+  availability       DriverAvailability @default(OFFLINE)
+  lastLat            Float?
+  lastLng            Float?
+  lastLocationAt     DateTime?
+  currentOrderId     String?            @unique
+  preferredLanguage  String             @default("en")
+  totalDeliveries    Int                @default(0)
+  totalReturns       Int                @default(0)
+  approvedAt         DateTime?
+  approvedByAdminId  String?
+  lastDeliveryAt     DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  onboardingLinks OnboardingLink[]
+  documents       Document[]
+  offers          AssignmentOffer[]
+  orders          Order[]            @relation("OrderDriver")
+  earnings        DriverEarning[]
+  payouts         DriverPayout[]
+}
+
+model OnboardingLink {
+  id          String    @id @default(cuid())
+  driverId    String
+  driver      Driver    @relation(fields: [driverId], references: [id])
+  tokenHash   String    @unique
+  phone       String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  reminderSentAt DateTime?
+  createdByAdminId String?
+  createdAt   DateTime  @default(now())
+}
+
+model DriverEarning {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id])
+  orderId   String
+  leg       String // DELIVERY | RETURN | ADJUSTMENT
+  grossFee  Int // what business paid for this leg
+  amount    Int // driver share
+  platform  Int // platform share
+  payoutId  String?
+  payout    DriverPayout? @relation(fields: [payoutId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, leg])
+  @@index([driverId, createdAt])
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+  HELD
+}
+
+model DriverPayout {
+  id            String       @id @default(cuid())
+  driverId      String
+  driver        Driver       @relation(fields: [driverId], references: [id])
+  weekStart     DateTime
+  weekEnd       DateTime
+  deliveryCount Int
+  returnCount   Int
+  grossPay      Int
+  deductions    Int          @default(0)
+  netPay        Int
+  status        PayoutStatus @default(PENDING)
+  reference     String?
+  paidAt        DateTime?
+  createdAt     DateTime     @default(now())
+
+  earnings DriverEarning[]
+
+  @@unique([driverId, weekStart])
+}
+
+// ───────────────────────────── Orders ─────────────────────────────
+
+enum OrderStatus {
+  CREATED
+  READY
+  ASSIGNING
+  NO_RIDER
+  ASSIGNED
+  PICKED_UP
+  OUT_FOR_DELIVERY
+  ARRIVED
+  DELIVERED
+  UNDELIVERED
+  RETURNING
+  RETURNED
+  CANCELLED
+}
+
+model Order {
+  id                  String      @id @default(cuid())
+  code                String      @unique // human readable, e.g. QD-7K3M9P
+  businessId          String
+  business            Business    @relation(fields: [businessId], references: [id])
+  cityId              String
+  city                City        @relation(fields: [cityId], references: [id])
+  pickupAddressId     String
+  pickupAddress       PickupAddress @relation(fields: [pickupAddressId], references: [id])
+  businessReferenceId String?
+  source              String      @default("APP") // APP | API
+  isTest              Boolean     @default(false)
+  customerName        String
+  customerPhone       String
+  dropAddress         String
+  dropLandmark        String?
+  dropPincode         String?
+  dropLat             Float
+  dropLng             Float
+  parcelDescription   String
+  weightGrams         Int
+  lengthCm            Int?
+  widthCm             Int?
+  heightCm            Int?
+  declaredValue       Int // paise
+  isFragile           Boolean     @default(false)
+  specialInstructions String?
+  status              OrderStatus @default(CREATED)
+  deliveryFee         Int // paise, snapshot at creation
+  returnFee           Int // paise, snapshot at creation
+  driverSharePct      Int // snapshot at creation
+  driverId            String?
+  driver              Driver?     @relation("OrderDriver", fields: [driverId], references: [id])
+  // delivery OTP: encrypted, never returned to business/admin APIs
+  otpEnc              String?
+  otpSentAt           DateTime?
+  otpSendCount        Int         @default(0)
+  otpFailedAttempts   Int         @default(0)
+  otpLocked           Boolean     @default(false)
+  // return OTP: shown to business, entered by rider on return
+  returnOtpEnc        String?
+  trackingToken       String      @unique
+  assignmentAttempts  Int         @default(0) // number of assignment rounds started
+  undeliveredReason   String?
+  cancelReason        String?
+  flags               String[]    @default([])
+  createdAt           DateTime    @default(now())
+  readyAt             DateTime?
+  assignedAt          DateTime?
+  pickedUpAt          DateTime?
+  arrivedAt           DateTime?
+  deliveredAt         DateTime?
+  undeliveredAt       DateTime?
+  returnedAt          DateTime?
+  cancelledAt         DateTime?
+  updatedAt           DateTime    @updatedAt
+
+  timeline  OrderTimeline[]
+  offers    AssignmentOffer[]
+  ledger    WalletLedger[]
+  calls     CallLog[]
+  otpEvents OtpEvent[]
+
+  @@unique([businessId, businessReferenceId])
+  @@index([businessId, createdAt])
+  @@index([status])
+  @@index([customerPhone])
+}
+
+model OrderTimeline {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  actorType String // BUSINESS | DRIVER | SYSTEM | SUPPORT | API
+  actorId   String?
+  lat       Float?
+  lng       Float?
+  reason    String?
+  note      String?
+  occurredAt DateTime   @default(now()) // when it happened (offline actions keep original time)
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+model AssignmentOffer {
+  id         String      @id @default(cuid())
+  orderId    String
+  order      Order       @relation(fields: [orderId], references: [id])
+  driverId   String
+  driver     Driver      @relation(fields: [driverId], references: [id])
+  round      Int
+  distanceKm Float
+  status     OfferStatus @default(PENDING)
+  expiresAt  DateTime
+  respondedAt DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([driverId, status])
+  @@index([orderId, round])
+}
+
+model CallLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  driverId  String
+  target    String // CUSTOMER | BUSINESS | SUPPORT
+  outcome   String? // NO_ANSWER | ANSWERED | BUSY | UNREACHABLE
+  lat       Float?
+  lng       Float?
+  calledAt  DateTime @default(now())
+}
+
+model OtpEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  kind      String // SENT | RESENT | VERIFY_OK | VERIFY_FAIL | LOCKED | UNLOCKED
+  channel   String?
+  actorType String
+  actorId   String?
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────────── Wallet ─────────────────────────────
+
+enum LedgerType {
+  RECHARGE
+  HOLD
+  RELEASE
+  FORWARD_CHARGE
+  RETURN_CHARGE
+  CREDIT
+  REFUND
+  DEBIT_ADJUSTMENT
+}
+
+model WalletLedger {
+  id            String     @id @default(cuid())
+  businessId    String
+  business      Business   @relation(fields: [businessId], references: [id])
+  orderId       String?
+  order         Order?     @relation(fields: [orderId], references: [id])
+  rechargeId    String?
+  type          LedgerType
+  amount        Int // paise, always positive; direction implied by type
+  balanceAfter  Int
+  heldAfter     Int
+  reason        String
+  createdByType String // SYSTEM | ADMIN | GATEWAY
+  createdById   String?
+  idempotencyKey String?   @unique
+  createdAt     DateTime   @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+model Recharge {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  amount      Int
+  provider    String // MOCK | RAZORPAY
+  providerRef String?  @unique
+  status      String   @default("CREATED") // CREATED | PAID | FAILED
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+// ───────────────────────────── API & webhooks ─────────────────────────────
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id])
+  keyId      String    @unique // public part, e.g. qd_live_abc123
+  secretHash String
+  mode       String // TEST | LIVE
+  active     Boolean   @default(true)
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model WebhookDelivery {
+  id          String    @id @default(cuid())
+  businessId  String
+  orderId     String
+  event       String
+  url         String
+  payload     Json
+  attempts    Int       @default(0)
+  status      String    @default("PENDING") // PENDING | DELIVERED | FAILED
+  lastError   String?
+  nextAttemptAt DateTime @default(now())
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, nextAttemptAt])
+}
+
+// ───────────────────────────── Notifications ─────────────────────────────
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  channel   String // SMS | WHATSAPP | PUSH | EMAIL
+  to        String
+  template  String
+  body      String // OTP digits are masked before storing
+  status    String   @default("SENT") // SENT | FAILED
+  error     String?
+  orderId   String?
+  createdAt DateTime @default(now())
+}
+
+model LoginOtp {
+  id        String   @id @default(cuid())
+  phone     String
+  purpose   String // DRIVER_LOGIN
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([phone, purpose])
+}
+
+// ───────────────────────────── Support ─────────────────────────────
+
+model SupportTicket {
+  id          String    @id @default(cuid())
+  businessId  String?
+  business    Business? @relation(fields: [businessId], references: [id])
+  driverId    String?
+  orderId     String?
+  type        String // WHERE_IS_MY_PARCEL | WALLET_DISPUTE | RIDER_ISSUE | BUSINESS_ISSUE | LOSS_DAMAGE | SUSPICIOUS_PARCEL | OTHER
+  subject     String
+  status      String    @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
+  priority    String    @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  assignedToAdminId String?
+  resolution  String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  messages TicketMessage[]
+}
+
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id])
+  authorType String
+  authorId  String?
+  body      String
+  createdAt DateTime      @default(now())
+}
