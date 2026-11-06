@@ -1,12 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { AuditService } from '../common/audit.service';
 import { maskPhone } from '../common/crypto';
+import { config } from '../common/config';
 import { AppError, Errors } from '../common/errors';
 import { PrismaService } from '../common/prisma.service';
 import { DocumentsService, UploadedFileLike } from '../documents/documents.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 const DAY = 86_400_000;
+
+export const INACTIVE_REASON_PREFIX = 'Inactive';
+export const INACTIVE_MESSAGE = `No delivery in ${config.inactiveRiderDays} days. Call support to check in and re-check your documents before going online.`;
+
+/** 30 days with no delivery since approval or last check-in (founder decision #16). */
+export function isInactive(d: { approvedAt: Date | null; lastDeliveryAt: Date | null; lastCheckInAt: Date | null }, now = new Date()) {
+  const last = Math.max(d.approvedAt?.getTime() ?? 0, d.lastDeliveryAt?.getTime() ?? 0, d.lastCheckInAt?.getTime() ?? 0);
+  if (!last) return false;
+  return now.getTime() - last > config.inactiveRiderDays * 86_400_000;
+}
+
+/** Pause the rider and open a support ticket so staff call them and re-check DL/RC before reactivating. */
+export async function pauseForCheckIn(prisma: PrismaService, d: { id: string; status: string }) {
+  if (d.status !== 'APPROVED') return false;
+  const res = await prisma.driver.updateMany({
+    where: { id: d.id, status: 'APPROVED', currentOrderId: null },
+    data: { status: 'PAUSED', availability: 'OFFLINE', statusReason: `${INACTIVE_REASON_PREFIX} ${config.inactiveRiderDays}+ days: check-in and document re-check needed` },
+  });
+  if (res.count !== 1) return false;
+  await prisma.supportTicket.create({
+    data: { driverId: d.id, type: 'RIDER_ISSUE', subject: `Rider check-in needed (${config.inactiveRiderDays} days inactive)`, messages: { create: { authorType: 'SYSTEM', body: 'Call the rider, re-check DL, RC and bank details, then Reactivate.' } } },
+  });
+  return true;
+}
 
 @Injectable()
 export class DriversService {
@@ -46,6 +71,10 @@ export class DriversService {
     if (!d.dlExpiry || d.dlExpiry < now || !d.rcExpiry || d.rcExpiry < now) {
       await this.prisma.driver.update({ where: { id: driverId }, data: { status: 'PAUSED', statusReason: 'Driving Licence or RC expired. Upload renewed document.' } });
       throw new AppError('DOCUMENT_EXPIRED', 'Your DL or RC has expired. Upload the renewed document to continue.', 403, 'UPLOAD_RENEWAL');
+    }
+    if (!d.currentOrderId && isInactive(d, now)) {
+      await pauseForCheckIn(this.prisma, d);
+      throw new AppError('CHECK_IN_REQUIRED', INACTIVE_MESSAGE, 403, 'CONTACT_SUPPORT');
     }
     if (d.city.status === 'PAUSED') throw Errors.cityPaused(d.city.pauseMessage);
     await this.prisma.driver.update({
@@ -169,7 +198,8 @@ export class DriversService {
         const dl = extra.dlExpiry ? new Date(extra.dlExpiry) : d.dlExpiry;
         const rc = extra.rcExpiry ? new Date(extra.rcExpiry) : d.rcExpiry;
         if (!dl || dl.getTime() < now || !rc || rc.getTime() < now) throw new AppError('DOCUMENT_EXPIRED', 'Update DL/RC expiry from the renewed document before reactivating', 409);
-        data = { status: 'APPROVED', statusReason: null, dlExpiry: dl, rcExpiry: rc };
+        // Reactivation is the check-in: support has spoken to the rider and re-checked DL/RC.
+        data = { status: 'APPROVED', statusReason: null, dlExpiry: dl, rcExpiry: rc, lastCheckInAt: new Date() };
         break;
       }
     }
@@ -183,7 +213,7 @@ export class DriversService {
     }
     await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: `DRIVER_${action}`, entity: 'Driver', entityId: id, oldValue: { status: d.status }, newValue: { status: updated.status }, reason });
     const msg: Partial<Record<typeof action, string>> = {
-      APPROVE: 'Your documents are approved, download the Quick Delivery Partner app and go online when you are ready.',
+      APPROVE: 'Your documents are approved, download the QuickDeliver Rider app and go online when you are ready.',
       REJECT: `Your partner application was not approved: ${reason}.`,
       REQUEST_REUPLOAD: `Please re-upload: ${reason}. Our staff will send you a new link.`,
       SUSPEND: `Your partner account is suspended: ${reason}. You can appeal by calling support.`,

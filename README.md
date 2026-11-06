@@ -63,9 +63,9 @@ flutter run -t lib/main_business.dart --dart-define=API_URL=http://10.0.2.2:4000
 ### Try the whole flow in five minutes
 
 1. Business portal → New order → paste `22.74, 75.88` as the pin → **Create & mark Ready**. With no rider online it goes to **No Rider** (no charge) — that's the honest message from the masterplan.
-2. Driver app (or `POST /api/driver/availability {online:true, lat, lng}`) → go online near the pickup → Business retries → rider gets the offer with a 30 s countdown → Accept. Wallet shows ₹35 **held**.
-3. Rider: Pickup → ₹35 **charged**. Arrived → the customer's OTP is on the tracking link (`/track/<token>`) → enter it → **Delivered**, rider earns ₹28.
-4. Or: call the customer twice from the app, wait 15 minutes, mark **Could not deliver** → ₹25 return charged (₹60 total) → business sees a return code → rider enters it → **Returned**, rider earns ₹48.
+2. Driver app (or `POST /api/driver/availability {online:true, lat, lng}`) → go online near the pickup → Business retries → rider gets the offer with a 30 s countdown → Accept. Wallet shows ₹60 **held** (₹35 delivery + ₹25 possible return).
+3. Rider: Pickup → ₹35 **charged**, ₹25 still held. Arrived → the customer's OTP is on the tracking link (`/track/<token>`) → enter it → **Delivered**, the ₹25 is released, rider earns ₹28.
+4. Or: call the customer twice from the app, wait 15 minutes, mark **Could not deliver** → the held ₹25 becomes the return charge (₹60 total) → business sees a return code → rider enters it → **Returned**, rider earns ₹48.
 5. Admin → Orders → open the order: timeline, wallet entries, GPS, calls, OTP attempts and offers on one screen.
 
 ## Tests
@@ -86,7 +86,7 @@ signed webhooks, the sandbox, onboarding-link rules, document expiry auto-pause 
 | Rule | Enforcement |
 |---|---|
 | Business only, verified only | `BusinessesService.signup` + admin review; orders, recharge and API all check `status = APPROVED` |
-| Prepaid wallet only | `WalletService` — create blocked below ₹35 available; hold at accept, charge at pickup; append-only ledger with row locks and idempotency keys |
+| Prepaid wallet only | `WalletService` — create blocked below ₹60 available; ₹60 held at accept, ₹35 charged at pickup, ₹25 released on delivery or charged on return (never negative); append-only ledger with row locks and idempotency keys |
 | OTP or no delivery | `AssignmentService.deliver` — encrypted 4-digit OTP, never in business/API/admin responses, 3 wrong → locked |
 | One order per rider | unique `Driver.currentOrderId` + conditional claim on accept; busy riders never get offers |
 | No time promise | no ETA anywhere; copy says "usually 30–70 minutes, not a promise" |

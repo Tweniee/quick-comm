@@ -22,6 +22,10 @@ export const config = {
   maxWeightGrams: 20_000,
   maxDims: { l: 45, w: 35, h: 35, sum: 115 },
   liabilityCapPaise: 500_000,
+  /** Manual goodwill credit support may give a rider when an order is cancelled after accept (founder decision, 6 Nov 2026). */
+  riderGoodwillPaise: 1_000,
+  /** Riders with no delivery (and no check-in) for this many days must check in and have documents re-checked. */
+  inactiveRiderDays: 30,
   minCallsBeforeUndelivered: 2,
   maxOtpAttempts: 3,
   maxManualAssignmentRetries: 1,

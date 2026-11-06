@@ -68,8 +68,9 @@ Money is in **paise** (₹35 = `3500`). Weight in grams.
 
 ## Charges
 
-- ₹35 when the rider picks up (held from the moment a rider accepts).
-- ₹25 extra if the customer can't be reached and the parcel comes back (₹60 total).
+- Creating an order needs ₹60 available (₹35 delivery + ₹25 possible return).
+- ₹60 is held when a rider accepts. ₹35 is charged when the rider picks up.
+- Delivered: the remaining ₹25 is released. Returned: the held ₹25 becomes the return charge (₹60 total). The wallet never goes negative.
 - Nothing for creating, marking Ready, "no rider available", or cancelling before assignment.
 
 ## Webhooks
@@ -89,7 +90,7 @@ Respond 2xx within 10 s. Failed deliveries retry after 30 s, 2 min and 10 min, t
 ## Errors
 
 ```json
-{ "error": { "code": "INSUFFICIENT_WALLET", "message": "Recharge ₹35 to create this order", "nextAction": "RECHARGE", "details": { … } } }
+{ "error": { "code": "INSUFFICIENT_WALLET", "message": "Recharge ₹60 to create this order", "nextAction": "RECHARGE", "details": { … } } }
 ```
 
 Common codes: `INSUFFICIENT_WALLET` (402), `OUTSIDE_SERVICE_AREA`, `OVERWEIGHT`, `OVERSIZE`, `INVALID_PHONE`, `VALIDATION_ERROR` (422), `BUSINESS_NOT_VERIFIED`, `API_NOT_WHITELISTED` (403), `API_KEY_INVALID` (401), `RATE_LIMITED` (429), `INVALID_STATE_TRANSITION`, `CITY_PAUSED` (409).

@@ -1,32 +1,29 @@
-# Open questions for the founder
+# Founder decisions and what is still open
 
-These are the masterplan's **[TO CONFIRM]** items and a few decisions the build surfaced. For each one the code currently does the **default** shown, and the place to change it is listed.
+Abhishek answered the 17 build questions on 6 Nov 2026. This page records each answer and where it lives in the code.
 
 ## Money
-
-1. **Driver share: does the driver get 80%?** Founder's words were "I will get 80%". Built as *driver 80%, platform 20%* (₹28/₹7 per delivery, ₹20/₹5 per return). It's a per-city Super Admin setting (`PricingConfig.driverSharePct`), snapshotted on each order.
-2. **When is ₹35 taken?** Built per assumption A1: **held** when a rider accepts, **charged** at pickup, released if cancelled before pickup. "No rider" costs nothing.
-3. **Return charge when the wallet is empty.** The ₹25 return is charged even if it takes the balance below zero (the parcel already travelled). New orders are then blocked until recharge. Alternative: hold ₹60 at accept and release ₹25 on delivery. Tell us which you prefer.
-4. **Driver payouts** — built as weekly (Monday–Sunday), statement + bank file export, marked paid with the UTR. Instant payouts are not built.
-5. **Minimum recharge** defaults to ₹500, maximum ₹50,000 (Super Admin setting per city).
-6. **Rider goodwill fee when support cancels after the rider accepted** — not automated (masterplan says not V1).
+1. **Driver share: decided.** Driver 80%, platform 20%: ₹28 of ₹35 and ₹20 of ₹25. Set per city (`PricingConfig.driverSharePct`) and snapshotted on each order.
+2. **₹35 timing: decided.** Held when a rider accepts, charged at pickup, released if cancelled before pickup. "No rider" costs nothing.
+3. **Return charge: changed.** ₹60 (₹35 + ₹25) is held when a rider accepts, and an order needs ₹60 available. At pickup ₹35 is charged and ₹25 stays held. On delivery the ₹25 is released; if undelivered it becomes the return charge. The wallet never goes negative (`WalletService`).
+4. **Driver payouts: decided.** Weekly, Monday to Sunday, with a statement and bank file, marked paid with the UTR. No instant payouts in V1.
+5. **Recharge limits: decided.** ₹500 minimum and ₹50,000 maximum, set per city.
+6. **Goodwill fee: decided.** It stays manual. On a cancelled order that a rider had accepted, support can credit the rider ₹10 if they had already left for pickup (Admin → Order → "Rider goodwill ₹10"). It needs a reason, is allowed once per order, is audited, and is paid in the weekly payout.
 
 ## Liability & legal
-
-7. **₹5,000 cap** read as *lower of declared value or ₹5,000*. Businesses see a warning when value > ₹5,000. Legal wording of terms, driver agreement and DPDP consent still needs a lawyer.
-8. **Gig worker status, insurance, accident cover** — nothing in the product assumes employment.
-9. **GST on platform fee / invoices** — no invoice generation yet; needs finance advice on what to invoice (full fee vs platform share).
+7. **₹5,000 cap: decided.** Liability is the lower of the declared value or ₹5,000, and a warning shows when the value is above ₹5,000. The terms, driver agreement and DPDP consent still need a lawyer.
+8. **Gig worker status: decided.** Riders are partners only, and nothing in the product assumes employment.
+9. **GST and invoices: open.** This needs finance advice before invoices are generated. It does not block the pilot wallet.
 
 ## Product
-
-10. **Launch city.** The seed uses a sample centre (Indore) only so the app runs; change it in Admin → Cities. Everything is city-agnostic.
-11. **Business signup OTP.** Signup does not yet verify the mobile/email by OTP; verification is the manual staff review. Add OTP when the SMS provider is chosen.
-12. **Express KYC (Aadhaar / GSTIN OTP)** — needs a KYC provider (e.g. Signzy, IDfy, Karza). Manual review only for now.
-13. **Return confirmation.** Built as a 4-digit **return code shown to the business**, which the rider enters (or the business taps "I received it"). OK?
-14. **Wait rule.** Built as 15 minutes and at least 2 logged calls before "Customer not reachable", "Wrong address" or "Could not find location". "Customer refused", "OTP not provided" and "Customer asked to return" need no wait.
-15. **Assignment retries.** Business gets 1 manual retry after "No rider"; support can retry more. Unassigned Ready orders auto-cancel at day end.
-16. **Inactive riders (30 days without a delivery)** — not enforced yet; tell us if they should be forced to check in.
-17. **App identities.** One Flutter project, two apps. Need final app names, icons, and Play Store package names.
+10. **Launch city: open.** Indore is only the sample seed so the app runs. Change it in Admin → Cities once the real city is picked.
+11. **Business signup OTP: decided, waiting on the SMS provider.** Until then, manual staff review is the gate, and no unverified business can create orders.
+12. **Express KYC: decided.** Manual review only for now. Signzy, IDfy or Karza can be added later.
+13. **Return confirmation: decided.** A 4-digit return code is shown to the business. The rider enters it, or the business taps "I received it".
+14. **Wait rule: decided.** "Customer not reachable", "Wrong address" and "Could not find location" need a 15-minute wait and at least 2 logged calls. "Customer refused", "OTP not provided" and "Customer asked to return" need no wait.
+15. **Assignment retries: decided.** The business gets 1 manual retry after "No rider", support can retry more, and unassigned Ready orders auto-cancel at day end.
+16. **Inactive riders: built.** After 30 days with no delivery since approval or the last check-in, a rider is paused when they try to go online, and a 6-hourly job pauses offline riders too. Either way a support ticket opens. Support calls the rider, re-checks DL, RC and bank details, then presses Reactivate, which counts as the check-in (`drivers.service.ts` `isInactive`, `JobsService.inactiveRiders`).
+17. **App names: working names in place.** The apps are called **QuickDeliver Business** and **QuickDeliver Rider** for now. The final names, icons and Play Store package names are still needed from the founder.
 
 ## Vendors to pick (Phase 0)
 

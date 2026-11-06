@@ -87,7 +87,8 @@ export class WalletService {
       held: b.walletHeld,
       available,
       lowBalance: pricing ? available < pricing.lowBalanceWarnAt : false,
-      canCreateOrder: pricing ? available >= pricing.deliveryFee : false,
+      canCreateOrder: pricing ? available >= pricing.deliveryFee + pricing.returnFee : false,
+      requiredToCreate: pricing ? pricing.deliveryFee + pricing.returnFee : null,
       deliveryFee: pricing?.deliveryFee ?? null,
       returnFee: pricing?.returnFee ?? null,
       minRecharge: pricing?.minRechargeAmount ?? null,
@@ -113,17 +114,21 @@ export class WalletService {
     });
   }
 
-  /** Hold the forward fee when a rider accepts (assumption A1). Fails if available < fee. */
+  /**
+   * Hold forward fee + return fee (₹35 + ₹25 = ₹60) when a rider accepts (founder decision, 6 Nov 2026).
+   * Pickup turns ₹35 of it into the forward charge; delivery releases the remaining ₹25;
+   * undelivered turns the remaining ₹25 into the return charge. The wallet never goes negative.
+   */
   hold(tx: Tx, businessId: string, orderId: string, orderCode: string, amount: number, offerId: string) {
     return this.write(tx, {
       businessId, orderId, type: 'HOLD', amount, balanceDelta: 0, heldDelta: amount,
-      reason: `Hold for order ${orderCode} (rider assigned)`, key: `hold:${orderId}:${offerId}`, requireAvailable: amount,
+      reason: `Hold for order ${orderCode} (rider assigned, delivery + possible return)`, key: `hold:${orderId}:${offerId}`, requireAvailable: amount,
     });
   }
 
-  /** Release an active hold (cancel after assignment, before pickup / rider unassigned). */
+  /** Release whatever is still held for the order (cancel before pickup, rider unassigned, or the ₹25 return hold after delivery). */
   async release(tx: Tx, businessId: string, orderId: string, orderCode: string, reason: string) {
-    const holds = await tx.walletLedger.findMany({ where: { orderId, type: { in: ['HOLD', 'RELEASE', 'FORWARD_CHARGE'] } } });
+    const holds = await tx.walletLedger.findMany({ where: { orderId, type: { in: ['HOLD', 'RELEASE', 'FORWARD_CHARGE', 'RETURN_CHARGE'] } } });
     const active = this.activeHold(holds);
     if (active <= 0) return null;
     return this.write(tx, {
@@ -134,7 +139,7 @@ export class WalletService {
 
   /** Convert the hold into the forward charge at pickup. */
   async chargeForward(tx: Tx, businessId: string, orderId: string, orderCode: string, fee: number) {
-    const holds = await tx.walletLedger.findMany({ where: { orderId, type: { in: ['HOLD', 'RELEASE', 'FORWARD_CHARGE'] } } });
+    const holds = await tx.walletLedger.findMany({ where: { orderId, type: { in: ['HOLD', 'RELEASE', 'FORWARD_CHARGE', 'RETURN_CHARGE'] } } });
     const active = this.activeHold(holds);
     // Normal path: active hold equals fee. Defensive path: if no hold exists, charge directly.
     return this.write(tx, {
@@ -143,10 +148,12 @@ export class WalletService {
     });
   }
 
-  /** Return-leg charge when the rider marks Undelivered. May take balance below zero; new orders are then blocked until recharge. */
-  chargeReturn(tx: Tx, businessId: string, orderId: string, orderCode: string, fee: number, reason: string) {
+  /** Return-leg charge when the rider marks Undelivered. Consumes the ₹25 still held since accept. */
+  async chargeReturn(tx: Tx, businessId: string, orderId: string, orderCode: string, fee: number, reason: string) {
+    const holds = await tx.walletLedger.findMany({ where: { orderId, type: { in: ['HOLD', 'RELEASE', 'FORWARD_CHARGE', 'RETURN_CHARGE'] } } });
+    const active = this.activeHold(holds);
     return this.write(tx, {
-      businessId, orderId, type: 'RETURN_CHARGE', amount: fee, balanceDelta: -fee, heldDelta: 0,
+      businessId, orderId, type: 'RETURN_CHARGE', amount: fee, balanceDelta: -fee, heldDelta: -Math.min(active, fee),
       reason: `Return charge for ${orderCode} (${reason})`, key: `return:${orderId}`,
     });
   }
@@ -156,7 +163,7 @@ export class WalletService {
     for (const e of entries) {
       if (e.type === 'HOLD') held += e.amount;
       if (e.type === 'RELEASE') held -= e.amount;
-      if (e.type === 'FORWARD_CHARGE') held -= Math.min(held, e.amount);
+      if (e.type === 'FORWARD_CHARGE' || e.type === 'RETURN_CHARGE') held -= Math.min(held, e.amount);
     }
     return held;
   }

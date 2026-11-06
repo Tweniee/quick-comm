@@ -31,12 +31,13 @@ All amounts are integer **paise**. Fees and driver share are snapshotted on the 
 
 | Event | Business ledger | Driver earning |
 |---|---|---|
-| Rider accepts | HOLD ₹35 (requires available ≥ ₹35) | — |
-| Pickup | FORWARD_CHARGE ₹35 (hold consumed) | — |
-| Delivered (OTP ok) | — | DELIVERY ₹28 |
-| Undelivered | RETURN_CHARGE ₹25 | — |
+| Order create / Ready | requires available ≥ ₹60 (₹35 delivery + ₹25 possible return) | — |
+| Rider accepts | HOLD ₹60 | — |
+| Pickup | FORWARD_CHARGE ₹35 (₹25 stays held) | — |
+| Delivered (OTP ok) | RELEASE ₹25 | DELIVERY ₹28 |
+| Undelivered | RETURN_CHARGE ₹25 (from the held ₹25, so the wallet never goes negative) | — |
 | Returned | — | DELIVERY ₹28 + RETURN ₹20 |
-| Cancel before pickup | RELEASE ₹35 | — |
+| Cancel before pickup | RELEASE ₹60 | support may add GOODWILL ₹10 manually (once per order, with a reason) |
 | No rider / cancel before assign | nothing | — |
 
 ## Security & privacy
