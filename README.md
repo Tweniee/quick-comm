@@ -77,9 +77,9 @@ pnpm test
 cd apps/mobile && flutter analyze && flutter test
 ```
 
-The backend suite (19 end-to-end tests) covers the three things the masterplan says must be right on day one:
+The backend suite (20 end-to-end tests) covers the three things the masterplan says must be right on day one:
 the **order state machine**, the **wallet ledger**, and the **assignment offer** — plus OTP lockout, idempotent API creation under concurrency,
-signed webhooks, the sandbox, onboarding-link rules, document expiry auto-pause and weekly payouts. CI runs all of it (`.github/workflows/ci.yml`).
+signed webhooks, the sandbox, onboarding-link rules, document expiry auto-pause, inactive-rider check-in, rider goodwill and weekly payouts. CI runs all of it (`.github/workflows/ci.yml`).
 
 ## The five rules, and where they're enforced
 
