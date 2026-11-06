@@ -48,6 +48,25 @@ class Api {
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body ?? {});
 
+  /// Multipart upload (document renewals). [fields] go as form fields, the file as `file`.
+  Future<dynamic> upload(String path, Map<String, String> fields, String filePath) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$kApiUrl/api$path'))..fields.addAll(fields);
+    if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    http.Response res;
+    try {
+      res = await http.Response.fromStream(await req.send().timeout(const Duration(seconds: 60)));
+    } catch (_) {
+      throw ApiException(0, 'NETWORK', 'No network. Try again.');
+    }
+    final data = res.body.isEmpty ? null : jsonDecode(res.body);
+    if (res.statusCode >= 400) {
+      final e = (data is Map ? data['error'] : null) as Map<String, dynamic>? ?? {};
+      throw ApiException(res.statusCode, e['code'] as String? ?? 'ERROR', e['message'] as String? ?? 'Upload failed');
+    }
+    return data;
+  }
+
   Future<dynamic> _send(String method, String path, [Map<String, dynamic>? body]) async {
     final uri = Uri.parse('$kApiUrl/api$path');
     final headers = {
@@ -87,3 +106,20 @@ const statusLabel = {
   'PICKED_UP': 'Picked Up', 'OUT_FOR_DELIVERY': 'Out for Delivery', 'ARRIVED': 'Arrived', 'DELIVERED': 'Delivered',
   'UNDELIVERED': 'Undelivered', 'RETURNING': 'Returning', 'RETURNED': 'Returned', 'CANCELLED': 'Cancelled',
 };
+
+/// Tweniee partner support line. Set at build time: --dart-define=SUPPORT_PHONE=+91XXXXXXXXXX
+const String kSupportPhone = String.fromEnvironment('SUPPORT_PHONE', defaultValue: '');
+
+/// "3:41 pm"
+String clock(String? iso) {
+  if (iso == null) return '—';
+  final d = DateTime.parse(iso).toLocal();
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'am' : 'pm'}';
+}
+
+/// "11:42"
+String mmss(Duration d) {
+  final s = d.inSeconds.clamp(0, 359999);
+  return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+}

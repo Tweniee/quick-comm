@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of your renewed licence or RC.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is shared only while you are online or on a delivery, so we can offer nearby jobs and show the customer where their parcel is.</string>
 	<key>LSApplicationQueriesSchemes</key>

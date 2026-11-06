@@ -6,11 +6,11 @@ import 'driver_app.dart';
 import 'home_screen.dart';
 import 'strings.dart';
 
-/// Phone + SMS OTP. Only drivers approved by support can log in (account is never immediately active).
+/// D01 · Phone + SMS OTP. Only drivers approved by support can log in.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.ctx, required this.onLanguage});
   final DriverCtx ctx;
-  final Future<void> Function() onLanguage;
+  final Future<void> Function(String) onLanguage;
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -44,16 +44,32 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(S.t('appTitle')), actions: [TextButton(onPressed: () async { await widget.onLanguage(); setState(() {}); }, child: Text(S.t('language')))]),
-      body: ListView(padding: const EdgeInsets.all(20), children: [
-        TextField(controller: phone, keyboardType: TextInputType.phone, style: const TextStyle(fontSize: 22), decoration: InputDecoration(labelText: S.t('phone'))),
-        if (sent) ...[
+      backgroundColor: Tw.navy,
+      body: SafeArea(
+        child: ListView(padding: const EdgeInsets.all(24), children: [
+          Align(alignment: Alignment.centerRight, child: LangToggle(lang: S.lang, onChanged: (l) async { await widget.onLanguage(l); setState(() {}); })),
+          const SizedBox(height: 40),
+          const TwLogo(size: 56),
           const SizedBox(height: 16),
-          TextField(controller: code, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 26, letterSpacing: 6), decoration: InputDecoration(labelText: S.t('enterOtp'))),
-        ],
-        const SizedBox(height: 24),
-        ElevatedButton(onPressed: busy ? null : _go, child: Text(sent ? S.t('login') : S.t('getOtp'))),
-      ]),
+          Text('Tweniee Partner', style: Tw.display(30, color: Colors.white)),
+          const SizedBox(height: 6),
+          Text(S.l('Deliver for local shops. One order at a time.', 'लोकल दुकानों के लिए डिलीवरी। एक बार में एक ऑर्डर।'), style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 16)),
+          const SizedBox(height: 32),
+          Text(S.t('phone'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          TextField(controller: phone, keyboardType: TextInputType.phone, style: const TextStyle(fontSize: 22), decoration: const InputDecoration(prefixText: '+91  ')),
+          if (sent) ...[
+            const SizedBox(height: 16),
+            const Text('OTP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            TextField(controller: code, keyboardType: TextInputType.number, maxLength: 6, style: const TextStyle(fontSize: 26, letterSpacing: 8), decoration: const InputDecoration(counterText: '')),
+          ],
+          const SizedBox(height: 24),
+          ElevatedButton(onPressed: busy ? null : _go, child: Text(sent ? S.t('login') : S.t('getOtp'))),
+          const SizedBox(height: 16),
+          Text(S.l('Only partners approved by Tweniee support can log in.', 'सिर्फ Tweniee सपोर्ट से मंज़ूर पार्टनर लॉग इन कर सकते हैं।'), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF94A3B8))),
+        ]),
+      ),
     );
   }
 }
