@@ -78,3 +78,11 @@ export const ago = (d?: string | Date | null) => {
 
 export const dateOnly = (d?: string | Date | null) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+export const LEDGER_LABEL: Record<string, string> = {
+  RECHARGE: 'Recharge', HOLD: 'Held', RELEASE: 'Hold released', FORWARD_CHARGE: 'Forward', RETURN_CHARGE: 'Return',
+  CREDIT: 'Credit', REFUND: 'Refund', DEBIT_ADJUSTMENT: 'Adjustment',
+};
+/** +1 adds to the balance, -1 takes from it, 0 only moves money in or out of "held". Ledger amounts are stored positive. */
+export const ledgerSign = (type: string) => (['RECHARGE', 'CREDIT', 'REFUND'].includes(type) ? 1 : ['FORWARD_CHARGE', 'RETURN_CHARGE', 'DEBIT_ADJUSTMENT'].includes(type) ? -1 : 0);
+export const ledgerAmount = (type: string, amount: number) => { const s = ledgerSign(type); return `${s > 0 ? '+' : s < 0 ? '−' : ''}${rupees(Math.abs(amount))}`; };

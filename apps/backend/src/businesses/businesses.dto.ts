@@ -42,7 +42,7 @@ export class ProfileDto {
   @IsOptional() @IsString() billingAddress?: string;
 }
 
-export class VerifyContactDto { @IsString() phoneCode: string; @IsString() emailCode: string; }
+export class VerifyContactDto { @IsOptional() @IsString() phoneCode?: string; @IsOptional() @IsString() emailCode?: string; }
 export class TeamUserDto { @IsString() @MinLength(2) name: string; @IsString() phone: string; @IsOptional() @IsEmail() email?: string; @IsString() @MinLength(8) password: string; }
 export class ActiveDto { @IsBoolean() active: boolean; }
 export class ApiKeyDto { @IsIn(['TEST', 'LIVE']) mode: 'TEST' | 'LIVE'; }

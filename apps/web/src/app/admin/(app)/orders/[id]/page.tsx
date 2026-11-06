@@ -2,10 +2,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Card, ErrorBox, StatusBadge, usePoll } from '@/components/ui';
-import { api, rupees, tm } from '@/lib/api';
+import { api, LEDGER_LABEL, ledgerAmount, ledgerSign, rupees, tm } from '@/lib/api';
 import { mapsLink } from '@/lib/geo';
 
-const LEDGER_LABEL: Record<string, string> = { HOLD: 'Hold', HOLD_RELEASE: 'Hold released', DEBIT_DELIVERY: 'Forward charge', DEBIT_RETURN: 'Return charge', REFUND: 'Refund', CREDIT: 'Credit', DEBIT_ADJUSTMENT: 'Adjustment' };
 
 /** A03 · Order detail: one screen with timeline, evidence, wallet, GPS, calls and OTP attempts. */
 export default function AdminOrder({ params }: { params: { id: string } }) {
@@ -21,7 +20,7 @@ export default function AdminOrder({ params }: { params: { id: string } }) {
   if (!x) return <ErrorBox error={r.error} />;
   const o = x.order;
   const ev = x.evidence;
-  const total = x.ledger.filter((l: any) => l.type.startsWith('DEBIT_')).reduce((s: number, l: any) => s + Math.abs(l.amount), 0);
+  const total = x.ledger.reduce((s: number, l: any) => s - ledgerSign(l.type) * Math.abs(l.amount), 0);
   const riderTotal = x.earnings.reduce((s: number, e: any) => s + e.amount, 0);
   const platformTotal = x.earnings.reduce((s: number, e: any) => s + e.platform, 0);
   const prompted = (label: string) => { const v = prompt(label); return v === null ? null : v; };
@@ -81,7 +80,7 @@ export default function AdminOrder({ params }: { params: { id: string } }) {
           <Card title="Wallet entries">
             {x.ledger.length ? (
               <table><tbody>
-                {x.ledger.map((l: any) => <tr key={l.id}><td>{LEDGER_LABEL[l.type] ?? l.type}<div className="muted small">{l.reason}</div></td><td style={{ textAlign: 'right' }}>{l.amount < 0 ? '−' : '+'}{rupees(Math.abs(l.amount))}</td></tr>)}
+                {x.ledger.map((l: any) => <tr key={l.id}><td>{LEDGER_LABEL[l.type] ?? l.type}<div className="muted small">{l.reason}</div></td><td style={{ textAlign: 'right' }}>{ledgerAmount(l.type, l.amount)}</td></tr>)}
                 {total > 0 && <tr><td><b>Total</b>{x.earnings.length > 0 && <span className="muted small"> · rider {rupees(riderTotal)} · platform {rupees(platformTotal)}</span>}</td><td style={{ textAlign: 'right' }}><b>{rupees(total)}</b></td></tr>}
               </tbody></table>
             ) : <p className="muted small">No money moved.</p>}

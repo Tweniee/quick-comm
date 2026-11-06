@@ -4,10 +4,10 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { DocLink } from '@/components/DocLink';
 import { Card, ErrorBox, Stat, StatusBadge, usePoll } from '@/components/ui';
-import { api, dateOnly, dt, rupees } from '@/lib/api';
+import { api, dateOnly, dt, LEDGER_LABEL, ledgerAmount, rupees } from '@/lib/api';
 import { mapsLink } from '@/lib/geo';
 
-const TYPE: Record<string, string> = { INDIVIDUAL: 'Individual', SOLE_PROPRIETOR: 'Sole proprietorship', PARTNERSHIP: 'Partnership', PVT_LTD: 'Private limited', LLP: 'LLP', OTHER: 'Other' };
+const TYPE: Record<string, string> = { INDIVIDUAL: 'Individual', SOLE_PROPRIETORSHIP: 'Sole proprietorship', PARTNERSHIP: 'Partnership', PRIVATE_LIMITED: 'Private limited', LLP: 'LLP' };
 const DOC: Record<string, string> = { SHOP_PHOTO: 'Shop board photo', GST_CERT: 'GST certificate', UDYAM: 'Udyam certificate', PAN: 'PAN', AADHAAR_FRONT: 'Aadhaar', SELFIE: 'Selfie', ADDRESS_PROOF: 'Address proof', PICKUP_PHOTO: 'Pickup photo', OTHER: 'Other document' };
 const CHECKS = ['Presence matches name and pickup address', 'Real shop at the pin, signage visible', 'Products fit a bike', 'No earlier rejection: phone, GSTIN, PAN, address'];
 
@@ -138,7 +138,7 @@ function Profile({ x, reload }: { x: any; reload: () => Promise<void> }) {
       </div>
       <Card title="Passbook">
         <div className="table-wrap"><table><thead><tr><th>Date</th><th>Order</th><th>Entry</th><th>Amount</th><th>Balance</th><th>Reason</th></tr></thead>
-          <tbody>{(pb.data ?? []).map((r: any) => <tr key={r.id}><td className="small">{dt(r.createdAt)}</td><td className="mono small">{r.order?.code ?? '—'}</td><td className="small">{r.type.toLowerCase().replace(/_/g, ' ')}</td><td>{r.amount < 0 ? '−' : '+'}{rupees(Math.abs(r.amount))}</td><td>{rupees(r.balanceAfter)}</td><td className="small">{r.reason}</td></tr>)}</tbody></table></div>
+          <tbody>{(pb.data ?? []).map((r: any) => <tr key={r.id}><td className="small">{dt(r.createdAt)}</td><td className="mono small">{r.order?.code ?? '—'}</td><td className="small">{LEDGER_LABEL[r.type] ?? r.type}</td><td>{ledgerAmount(r.type, r.amount)}</td><td>{rupees(r.balanceAfter)}</td><td className="small">{r.reason}</td></tr>)}</tbody></table></div>
       </Card>
     </>
   );

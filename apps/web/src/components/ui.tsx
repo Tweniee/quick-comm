@@ -119,3 +119,27 @@ export function usePoll<T>(load: () => Promise<T>, ms = 10000, deps: unknown[] =
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
+
+/** One box per digit; paste fills all boxes. */
+export function OtpBoxes({ value, onChange, length = 6, label }: { value: string; onChange: (v: string) => void; length?: number; label?: string }) {
+  const set = (i: number, ch: string, el: HTMLInputElement) => {
+    const digits = ch.replace(/\D/g, '');
+    if (digits.length > 1) { onChange(digits.slice(0, length)); return; }
+    const arr = value.padEnd(length, ' ').split('');
+    arr[i] = digits || ' ';
+    onChange(arr.join('').trimEnd());
+    if (digits && el.nextElementSibling instanceof HTMLInputElement) el.nextElementSibling.focus();
+  };
+  return (
+    <div className="otp-boxes" role="group" aria-label={label}>
+      {Array.from({ length }, (_, i) => (
+        <input key={i} inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} aria-label={`${label ?? 'Code'} digit ${i + 1}`} value={value[i]?.trim() ?? ''}
+          onChange={(e) => set(i, e.target.value, e.target)}
+          onKeyDown={(e) => { if (e.key === 'Backspace' && !value[i]?.trim() && e.currentTarget.previousElementSibling instanceof HTMLInputElement) e.currentTarget.previousElementSibling.focus(); }} />
+      ))}
+    </div>
+  );
+}
+
+/** "Good afternoon" etc. */
+export const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };

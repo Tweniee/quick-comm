@@ -7,7 +7,7 @@ import { ago } from '@/lib/api';
 import { api } from '@/lib/api';
 
 type Tab = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-const TYPE: Record<string, string> = { INDIVIDUAL: 'Individual', SOLE_PROPRIETOR: 'Sole prop.', PARTNERSHIP: 'Partnership', PVT_LTD: 'Pvt Ltd', LLP: 'LLP', OTHER: 'Other' };
+const TYPE: Record<string, string> = { INDIVIDUAL: 'Individual', SOLE_PROPRIETORSHIP: 'Sole prop.', PARTNERSHIP: 'Partnership', PRIVATE_LIMITED: 'Pvt Ltd', LLP: 'LLP' };
 
 /** A05 · Business queue. */
 function Queue() {

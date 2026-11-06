@@ -110,9 +110,9 @@ export class BusinessesService {
     return this.sendContactCodes(businessId);
   }
 
-  async verifyContact(businessId: string, phoneCode: string, emailCode: string) {
+  async verifyContact(businessId: string, phoneCode?: string, emailCode?: string) {
     const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
-    const check = async (purpose: string, to: string, code: string, done: Date | null) => {
+    const check = async (purpose: string, to: string, code: string | undefined, done: Date | null) => {
       if (done) return true;
       const otp = await this.prisma.loginOtp.findFirst({ where: { phone: to, purpose, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
       if (!otp) throw new AppError('OTP_EXPIRED', 'Code expired. Tap Resend for a new one.', 401, 'RESEND');
