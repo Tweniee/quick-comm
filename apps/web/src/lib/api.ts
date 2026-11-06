@@ -61,3 +61,20 @@ export const STATUS_LABEL: Record<string, string> = {
   OUT_FOR_DELIVERY: 'Out for Delivery', ARRIVED: 'Arrived', DELIVERED: 'Delivered', UNDELIVERED: 'Undelivered',
   RETURNING: 'Returning', RETURNED: 'Returned', CANCELLED: 'Cancelled',
 };
+
+/** "3:41 pm" */
+export const tm = (d?: string | Date | null) =>
+  d ? new Date(d).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase() : '—';
+
+/** "22 min", "5 h", "1 day" since a time. */
+export const ago = (d?: string | Date | null) => {
+  if (!d) return '—';
+  const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));
+  if (m < 60) return `${m} min`;
+  if (m < 1440) return `${Math.round(m / 60)} h`;
+  const days = Math.round(m / 1440);
+  return `${days} day${days > 1 ? 's' : ''}`;
+};
+
+export const dateOnly = (d?: string | Date | null) =>
+  d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';

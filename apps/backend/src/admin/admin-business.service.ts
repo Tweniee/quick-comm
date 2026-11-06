@@ -27,18 +27,20 @@ export class AdminBusinessService {
       include: { addresses: true, documents: { orderBy: { createdAt: 'desc' } }, users: { select: { id: true, name: true, phone: true, email: true, role: true, active: true } }, apiKeys: { select: { id: true, keyId: true, mode: true, active: true, createdAt: true, lastUsedAt: true } }, city: true },
     });
     if (!b) throw Errors.notFound('Business');
-    const [byStatus, duplicates] = await Promise.all([
+    const [byStatus, duplicates, verifiedBy] = await Promise.all([
       this.prisma.order.groupBy({ by: ['status'], where: { businessId: id }, _count: true }),
       this.prisma.business.findMany({
         where: { id: { not: id }, OR: [{ phone: b.phone }, ...(b.gstin ? [{ gstin: b.gstin }] : []), ...(b.pan ? [{ pan: b.pan }] : [])] },
         select: { id: true, name: true, status: true },
       }),
+      b.verifiedByAdminId ? this.prisma.adminUser.findUnique({ where: { id: b.verifiedByAdminId }, select: { name: true } }) : null,
     ]);
     const counts = Object.fromEntries(byStatus.map((r) => [r.status, r._count]));
     const closed = (counts.DELIVERED ?? 0) + (counts.RETURNED ?? 0);
     const { webhookSecret, ...rest } = b;
     return {
       ...rest,
+      verifiedByName: verifiedBy?.name ?? null,
       orderCounts: counts,
       undeliveredRate: closed ? (counts.RETURNED ?? 0) / closed : 0,
       duplicates,

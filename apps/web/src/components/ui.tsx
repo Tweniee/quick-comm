@@ -38,7 +38,8 @@ export function Logo({ size }: { size?: 'lg' }) {
   return <div className={`logo ${size ?? ''}`} aria-hidden="true">T</div>;
 }
 
-export function Shell({ kind, nav, bottomNav, children }: { kind: Kind; nav: NavItem[]; bottomNav?: { href: string; label: string }[]; children: ReactNode }) {
+export function Shell({ kind, nav, bottomNav, search, children }: { kind: Kind; nav: NavItem[]; bottomNav?: { href: string; label: string }[]; search?: string; children: ReactNode }) {
+  const [q, setQ] = useState('');
   const router = useRouter();
   const path = usePathname();
   const [ready, setReady] = useState(false);
@@ -63,7 +64,15 @@ export function Shell({ kind, nav, bottomNav, children }: { kind: Kind; nav: Nav
           <button className="link" onClick={() => { session.clear(kind); router.replace(`/${kind}/login`); }}>Log out</button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        {search && (
+          <form className="topsearch" role="search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) router.push(`/${kind}/search?q=${encodeURIComponent(q.trim())}`); }}>
+            <span aria-hidden="true">⌕</span>
+            <input aria-label="Search" placeholder={search} value={q} onChange={(e) => setQ(e.target.value)} />
+          </form>
+        )}
+        {children}
+      </main>
       {bottomNav && (
         <nav className="bnav" aria-label="App">
           {bottomNav.map((n) => <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>{n.label}</Link>)}

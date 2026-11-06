@@ -174,18 +174,40 @@ export class AdminViewsService {
     };
   }
 
-  /** A15: audit with category filter and readable actor names. */
+  /** A15: audit with category filter, readable actor and entity names. Document views come from DocumentView. */
   async audit(q: { category?: string; take?: string }) {
+    const take = Math.min(Number(q.take ?? 200), 500);
     const cats: Record<string, Prisma.AuditLogWhereInput> = {
       wallet: { action: { startsWith: 'WALLET_' } },
-      approvals: { OR: [{ action: { startsWith: 'BUSINESS_' } }, { action: { startsWith: 'DRIVER_' } }] },
+      approvals: { OR: [{ action: { startsWith: 'BUSINESS_' } }, { action: { startsWith: 'DRIVER_' } }, { action: { startsWith: 'API_' } }] },
       pricing: { OR: [{ action: { contains: 'PRICE' } }, { action: { contains: 'PRICING' } }, { action: { startsWith: 'CITY_' } }] },
-      documents: { action: 'DOCUMENT_VIEW' },
     };
-    const rows = await this.prisma.auditLog.findMany({ where: cats[q.category ?? ''] ?? {}, orderBy: { createdAt: 'desc' }, take: Math.min(Number(q.take ?? 200), 500) });
+    const logs = q.category === 'documents' ? [] : await this.prisma.auditLog.findMany({ where: cats[q.category ?? ''] ?? {}, orderBy: { createdAt: 'desc' }, take });
+    const views = q.category && q.category !== 'documents' ? [] : await this.prisma.documentView.findMany({
+      orderBy: { createdAt: 'desc' }, take,
+      include: { document: { select: { kind: true, business: { select: { name: true } }, driver: { select: { name: true } } } } },
+    });
+    const rows = [
+      ...logs.map((r) => ({ ...r, entityName: null as string | null })),
+      ...views.map((v) => ({
+        id: v.id, actorType: v.viewerType, actorId: v.viewerId, action: 'DOCUMENT_VIEW', entity: 'Document', entityId: v.documentId, oldValue: null, newValue: null, reason: null, ip: null, createdAt: v.createdAt,
+        entityName: `${v.document.driver?.name ?? v.document.business?.name ?? ''} · ${v.document.kind.replace(/_FRONT|_BACK/, '').replace(/_/g, ' ')}`,
+      })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, take);
+    const ids = (entity: string) => [...new Set(rows.filter((r) => r.entity === entity && !r.entityName).map((r) => r.entityId))];
     const adminIds = [...new Set(rows.filter((r) => r.actorType === 'ADMIN' && r.actorId).map((r) => r.actorId!))];
-    const admins = Object.fromEntries((await this.prisma.adminUser.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true, role: true } })).map((a) => [a.id, a]));
-    return rows.map((r) => ({ ...r, actor: r.actorType === 'ADMIN' && r.actorId && admins[r.actorId] ? `${admins[r.actorId].name} · ${admins[r.actorId].role.replace('_', ' ').toLowerCase()}` : r.actorType.toLowerCase() }));
+    const [admins, businesses, drivers, cities] = await Promise.all([
+      this.prisma.adminUser.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true, role: true } }),
+      this.prisma.business.findMany({ where: { id: { in: ids('Business') } }, select: { id: true, name: true } }),
+      this.prisma.driver.findMany({ where: { id: { in: ids('Driver') } }, select: { id: true, name: true } }),
+      this.prisma.city.findMany({ where: { id: { in: ids('City') } }, select: { id: true, name: true } }),
+    ]);
+    const adminById = Object.fromEntries(admins.map((a) => [a.id, a]));
+    const names: Record<string, string> = Object.fromEntries([...businesses, ...drivers, ...cities].map((x) => [x.id, x.name]));
+    return rows.map((r) => {
+      const a = r.actorType === 'ADMIN' && r.actorId ? adminById[r.actorId] : null;
+      return { ...r, entityName: r.entityName ?? names[r.entityId] ?? null, actor: a ? `${a.name} · ${a.role.replace('_', ' ').toLowerCase()}` : r.actorType.toLowerCase() };
+    });
   }
 
   /** A01 extras: what needs attention right now. */
