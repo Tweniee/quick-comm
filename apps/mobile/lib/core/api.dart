@@ -8,6 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Android emulator reaches the host machine at 10.0.2.2.
 const String kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:4000');
 
+/// Web portal, for steps that live only on the web (signup, Razorpay checkout, API keys).
+const String kWebUrl = String.fromEnvironment('WEB_URL', defaultValue: 'http://10.0.2.2:3000');
+
+/// Ledger entry names and signs, same as the web passbook. Amounts are stored positive.
+const ledgerLabel = {'RECHARGE': 'Recharge', 'HOLD': 'Held', 'RELEASE': 'Hold released', 'FORWARD_CHARGE': 'Forward', 'RETURN_CHARGE': 'Return', 'CREDIT': 'Credit', 'REFUND': 'Refund', 'DEBIT_ADJUSTMENT': 'Adjustment'};
+int ledgerSign(String t) => const ['RECHARGE', 'CREDIT', 'REFUND'].contains(t) ? 1 : const ['FORWARD_CHARGE', 'RETURN_CHARGE', 'DEBIT_ADJUSTMENT'].contains(t) ? -1 : 0;
+String ledgerAmount(String t, num a) { final s = ledgerSign(t); return '${s > 0 ? '+' : s < 0 ? '−' : ''}${rupees(a.abs())}'; }
+
 class ApiException implements Exception {
   ApiException(this.status, this.code, this.message, {this.nextAction, this.details});
   final int status;
