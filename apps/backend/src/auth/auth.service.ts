@@ -55,7 +55,7 @@ export class AuthService {
     await this.prisma.loginOtp.create({
       data: { phone, purpose: 'DRIVER_LOGIN', codeHash: sha256(`${phone}:${code}`), expiresAt: new Date(Date.now() + 5 * 60_000) },
     });
-    await this.notify.send({ channel: 'SMS', to: phone, template: 'DRIVER_LOGIN_OTP', body: `Your Quick Delivery login code is ${code}. Do not share it.`, secret: code });
+    await this.notify.send({ channel: 'SMS', to: phone, template: 'DRIVER_LOGIN_OTP', body: `Your Tweniee login code is ${code}. Do not share it.`, secret: code });
     return { sent: true, ...(config.devEchoOtp ? { devOtp: code } : {}) };
   }
 

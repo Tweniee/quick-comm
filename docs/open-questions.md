@@ -23,7 +23,7 @@ Abhishek answered the 17 build questions on 6 Nov 2026. This page records each a
 14. **Wait rule: decided.** "Customer not reachable", "Wrong address" and "Could not find location" need a 15-minute wait and at least 2 logged calls. "Customer refused", "OTP not provided" and "Customer asked to return" need no wait.
 15. **Assignment retries: decided.** The business gets 1 manual retry after "No rider", support can retry more, and unassigned Ready orders auto-cancel at day end.
 16. **Inactive riders: built.** After 30 days with no delivery since approval or the last check-in, a rider is paused when they try to go online, and a 6-hourly job pauses offline riders too. Either way a support ticket opens. Support calls the rider, re-checks DL, RC and bank details, then presses Reactivate, which counts as the check-in (`drivers.service.ts` `isInactive`, `JobsService.inactiveRiders`).
-17. **App names: working names in place.** The apps are called **QuickDeliver Business** and **QuickDeliver Rider** for now. The final names, icons and Play Store package names are still needed from the founder.
+17. **App names: from the Tweniee design.** The apps are called **Tweniee Business** and **Tweniee Partner** (driver). The final names, icons and Play Store package names are still needed from the founder.
 
 ## Vendors to pick (Phase 0)
 

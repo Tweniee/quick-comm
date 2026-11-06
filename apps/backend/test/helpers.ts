@@ -58,6 +58,8 @@ export async function approvedBusiness(ctx: Ctx, rechargeRupees = 1000) {
   }).expect(201);
   const token = signup.body.token as string;
   const businessId = signup.body.business.id as string;
+  const v = signup.body.verification;
+  await ctx.http().post('/api/business/verify-contact').set(bearer(token)).send({ phoneCode: v.devPhoneCode, emailCode: v.devEmailCode }).expect(201);
   await ctx.http().post(`/api/admin/businesses/${businessId}/review`).set(bearer(ctx.adminToken)).send({ action: 'APPROVE' }).expect(201);
   if (rechargeRupees > 0) {
     const r = await ctx.http().post('/api/business/wallet/recharges').set(bearer(token)).send({ amount: rechargeRupees * 100 }).expect(201);

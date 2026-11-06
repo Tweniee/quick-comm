@@ -26,7 +26,7 @@ async function main() {
     update: {},
     create: {
       cityId: city.id, name: 'Demo Bakery', type: 'SOLE_PROPRIETORSHIP', ownerName: 'Demo Owner', phone: '9876500001', email: 'bakery@demo.local',
-      category: 'Bakery', instagram: 'https://instagram.com/demobakery', status: 'APPROVED', verifiedAt: new Date(), termsAcceptedAt: new Date(),
+      category: 'Bakery', instagram: 'https://instagram.com/demobakery', status: 'APPROVED', verifiedAt: new Date(), termsAcceptedAt: new Date(), phoneVerifiedAt: new Date(), emailVerifiedAt: new Date(), submittedAt: new Date(),
       walletBalance: 100000, apiEnabled: true,
       users: { create: { name: 'Demo Owner', phone: '9876500001', email: 'bakery@demo.local', passwordHash: pw, role: 'OWNER' } },
       addresses: { create: { label: 'Main shop', address: '12 MG Road, near Regal Square', pincode: '452001', lat: 22.7185, lng: 75.8571, isDefault: true, contactPhone: '9876500001' } },

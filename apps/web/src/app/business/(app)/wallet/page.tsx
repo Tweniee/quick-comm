@@ -38,7 +38,7 @@ export default function Wallet() {
           s.src = 'https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => res(); s.onerror = () => rej(new Error('Could not load payment page'));
           document.body.appendChild(s);
         });
-        new window.Razorpay({ key: r.keyId, order_id: r.razorpayOrderId, amount: r.amount, currency: 'INR', name: 'Quick Delivery wallet',
+        new window.Razorpay({ key: r.keyId, order_id: r.razorpayOrderId, amount: r.amount, currency: 'INR', name: 'Tweniee wallet',
           handler: () => setOk('Payment received. Your wallet will update in a few seconds.') }).open();
       }
       await w.reload(); await pb.reload();

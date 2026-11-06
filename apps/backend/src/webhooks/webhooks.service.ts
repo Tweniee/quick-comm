@@ -6,7 +6,7 @@ const BACKOFF_SECONDS = [0, 30, 120, 600]; // first try + 3 retries
 
 /**
  * Signed, retried webhooks (masterplan §12).
- * Signature: X-QD-Signature = hex(HMAC_SHA256(secret, `${timestamp}.${rawBody}`)), X-QD-Timestamp = unix seconds.
+ * Signature: X-TW-Signature = hex(HMAC_SHA256(secret, `${timestamp}.${rawBody}`)), X-TW-Timestamp = unix seconds.
  * After 3 failed retries the delivery is FAILED and shows in Admin → Webhooks for manual retry.
  */
 @Injectable()
@@ -42,7 +42,7 @@ export class WebhooksService {
     try {
       const res = await fetch(d.url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-QD-Event': d.event, 'X-QD-Timestamp': ts, 'X-QD-Signature': sig, 'X-QD-Delivery': d.id },
+        headers: { 'Content-Type': 'application/json', 'X-TW-Event': d.event, 'X-TW-Timestamp': ts, 'X-TW-Signature': sig, 'X-TW-Delivery': d.id },
         body,
         signal: AbortSignal.timeout(10_000),
       });

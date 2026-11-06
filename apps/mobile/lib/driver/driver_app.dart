@@ -58,7 +58,7 @@ class _DriverAppState extends State<DriverApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navKey,
-      title: 'QuickDeliver Rider',
+      title: 'Tweniee Partner',
       theme: appTheme(),
       home: loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))

@@ -71,7 +71,7 @@ export default function Settings() {
                 <td>{k.active && <button className="link" onClick={() => confirm('Revoke this key? It stops working immediately.') && run(() => api(`/business/api-keys/${k.id}`, { kind: 'business', method: 'DELETE' }), 'Key revoked')}>Revoke</button>}</td></tr>
             ))}</tbody></table>
             <h3 style={{ marginTop: 16 }}>Webhook</h3>
-            <p className="muted small">Every status change is POSTed to this HTTPS URL, signed: <code>X-QD-Signature = HMAC_SHA256(secret, timestamp + "." + body)</code>. 3 retries with backoff.</p>
+            <p className="muted small">Every status change is POSTed to this HTTPS URL, signed: <code>X-TW-Signature = HMAC_SHA256(secret, timestamp + "." + body)</code>. 3 retries with backoff.</p>
             <div className="row">
               <input style={{ flex: 1 }} placeholder={b.webhookUrl ?? 'https://your-shop.com/qd-webhook'} value={hook} onChange={(e) => setHook(e.target.value)} />
               <button onClick={() => run(async () => setSecret(await api('/business/webhook', { kind: 'business', body: { url: hook } })), 'Webhook saved')}>Save</button>

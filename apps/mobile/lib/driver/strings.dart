@@ -2,7 +2,7 @@
 class S {
   static String lang = 'hi';
   static const _t = <String, Map<String, String>>{
-    'appTitle': {'en': 'QuickDeliver Rider', 'hi': 'क्विकडिलीवर राइडर'},
+    'appTitle': {'en': 'Tweniee Partner', 'hi': 'ट्वेनी पार्टनर'},
     'phone': {'en': 'Mobile number', 'hi': 'मोबाइल नंबर'},
     'getOtp': {'en': 'Get OTP', 'hi': 'OTP पाएं'},
     'enterOtp': {'en': 'Enter the 6 digit code', 'hi': '6 अंकों का कोड डालें'},

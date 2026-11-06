@@ -11,7 +11,7 @@ For businesses that create orders from their own website, POS or app. Version 1 
 Every request sends:
 
 ```
-X-API-Key: qd_live_xxxxxxxx
+X-API-Key: tw_live_xxxxxxxx
 X-API-Secret: qds_xxxxxxxxxxxxxxxxxxxxxxxx
 Content-Type: application/json
 ```
@@ -81,9 +81,9 @@ Set an HTTPS URL in Settings. Each status change POSTs:
 { "event": "order.delivered", "status": "DELIVERED", "statusLabel": "Delivered", "occurredAt": "…", "order": { …same shape as GET /v1/orders/{id}… } }
 ```
 
-Headers: `X-QD-Event`, `X-QD-Delivery` (unique id), `X-QD-Timestamp` (unix seconds), `X-QD-Signature`.
+Headers: `X-TW-Event`, `X-TW-Delivery` (unique id), `X-TW-Timestamp` (unix seconds), `X-TW-Signature`.
 
-Verify: `hex(HMAC_SHA256(webhookSecret, X-QD-Timestamp + "." + rawBody)) == X-QD-Signature`, and reject timestamps older than 5 minutes.
+Verify: `hex(HMAC_SHA256(webhookSecret, X-TW-Timestamp + "." + rawBody)) == X-TW-Signature`, and reject timestamps older than 5 minutes.
 
 Respond 2xx within 10 s. Failed deliveries retry after 30 s, 2 min and 10 min, then wait for manual retry by our support.
 

@@ -81,10 +81,10 @@ describe('whitelisted API v1', () => {
       expect(await ctx.prisma.walletLedger.count({ where: { orderId: o.body.id } })).toBe(0);
 
       await ctx.app.get(WebhooksService).processDue();
-      const events = received.map((r) => r.headers['x-qd-event']);
+      const events = received.map((r) => r.headers['x-tw-event']);
       expect(events).toEqual(expect.arrayContaining(['order.created', 'order.ready', 'order.assigned', 'order.picked_up', 'order.delivered']));
       for (const r of received) {
-        expect(r.headers['x-qd-signature']).toBe(hmacSha256(wh.body.webhookSecret, `${r.headers['x-qd-timestamp']}.${r.body}`));
+        expect(r.headers['x-tw-signature']).toBe(hmacSha256(wh.body.webhookSecret, `${r.headers['x-tw-timestamp']}.${r.body}`));
         expect(r.body).not.toMatch(/"otp":"\d{4}"/);
       }
     } finally {

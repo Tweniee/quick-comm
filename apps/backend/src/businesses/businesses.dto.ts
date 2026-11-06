@@ -16,7 +16,7 @@ export class AddressDto {
 export class SignupDto {
   @IsString() cityId: string;
   @IsString() @MinLength(2) name: string;
-  @IsEnum(BusinessType) type: BusinessType;
+  @IsOptional() @IsEnum(BusinessType) type?: BusinessType;
   @IsString() @MinLength(2) ownerName: string;
   @IsString() phone: string;
   @IsEmail() email: string;
@@ -28,10 +28,11 @@ export class SignupDto {
   @IsOptional() @IsString() instagram?: string;
   @IsOptional() @IsString() googleProfile?: string;
   @IsBoolean() acceptTerms: boolean;
-  @ValidateNested() @Type(() => AddressDto) pickup: AddressDto;
+  @IsOptional() @ValidateNested() @Type(() => AddressDto) pickup?: AddressDto;
 }
 
 export class ProfileDto {
+  @IsOptional() @IsEnum(BusinessType) type?: BusinessType;
   @IsOptional() @IsString() website?: string;
   @IsOptional() @IsString() instagram?: string;
   @IsOptional() @IsString() googleProfile?: string;
@@ -41,5 +42,8 @@ export class ProfileDto {
   @IsOptional() @IsString() billingAddress?: string;
 }
 
+export class VerifyContactDto { @IsString() phoneCode: string; @IsString() emailCode: string; }
+export class TeamUserDto { @IsString() @MinLength(2) name: string; @IsString() phone: string; @IsOptional() @IsEmail() email?: string; @IsString() @MinLength(8) password: string; }
+export class ActiveDto { @IsBoolean() active: boolean; }
 export class ApiKeyDto { @IsIn(['TEST', 'LIVE']) mode: 'TEST' | 'LIVE'; }
 export class WebhookDto { @IsOptional() @IsString() url: string | null; }

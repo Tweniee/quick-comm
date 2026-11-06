@@ -53,6 +53,7 @@ export class DriverAppController {
     return this.drivers.setOnline(u.sub, b.online, b.lat != null && b.lng != null ? { lat: b.lat, lng: b.lng } : undefined);
   }
   @Post('location') location(@CurrentUser() u: Principal, @Body() b: LocationDto) { return this.drivers.updateLocation(u.sub, b.lat, b.lng); }
+  @Get('documents') documents(@CurrentUser() u: Principal) { return this.drivers.documentsView(u.sub); }
   @Get('earnings') earnings(@CurrentUser() u: Principal) { return this.drivers.earnings(u.sub); }
 
   @Post('documents/renewal')

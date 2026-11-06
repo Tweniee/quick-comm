@@ -1,4 +1,4 @@
-# Quick Delivery — Flutter apps
+# Tweniee — Flutter apps
 
 One Flutter project, two apps (entry points):
 
@@ -19,7 +19,7 @@ flutter build apk -t lib/main_business.dart --dart-define=API_URL=https://api.yo
 
 Both currently share one Android application id (`com.quickdelivery.quick_delivery`). Before publishing to the Play Store, add
 two product flavors (e.g. `driver` → `com.quickdelivery.partner`, `business` → `com.quickdelivery.business`) so both can be installed side by side.
-Working names until the founder picks final ones: **QuickDeliver Rider** (driver app) and **QuickDeliver Business**. Icons and package names are still to be decided.
+App names follow the Tweniee design: **Tweniee Partner** (driver app) and **Tweniee Business**. Icons and package names are still to be decided.
 
 Driver app design rules from the masterplan: offline by default, one live order only, big high-contrast buttons, Hindi/English,
 location only while online (every 30 s waiting, 15 s on a job), actions queued offline and synced with their original time.

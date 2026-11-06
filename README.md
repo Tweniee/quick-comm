@@ -1,4 +1,4 @@
-# Quick Delivery
+# Tweniee
 
 Intracity, bike-only quick delivery for verified local businesses — Shiprocket-style mechanics (verification, prepaid wallet, passbook, RTO charge, status-driven work) for a single city.
 

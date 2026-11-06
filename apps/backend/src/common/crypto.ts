@@ -46,7 +46,7 @@ const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 export function orderCode(): string {
   let s = '';
   for (let i = 0; i < 7; i++) s += ALPHABET[randomInt(0, ALPHABET.length)];
-  return `QD-${s}`;
+  return `TW-${s}`;
 }
 
 export function maskPhone(p?: string | null): string | null {

@@ -29,7 +29,7 @@ class _BusinessAppState extends State<BusinessApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         navigatorKey: navKey,
-        title: 'QuickDeliver Business',
+        title: 'Tweniee Business',
         theme: appTheme(),
         home: loading ? const Scaffold(body: Center(child: CircularProgressIndicator())) : bizApi.isLoggedIn ? const BizHome() : const BizLogin(),
       );
@@ -47,7 +47,7 @@ class _BizLoginState extends State<BizLogin> {
   bool busy = false;
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('QuickDeliver Business')),
+        appBar: AppBar(title: const Text('Tweniee Business')),
         body: ListView(padding: const EdgeInsets.all(20), children: [
           TextField(controller: login, decoration: const InputDecoration(labelText: 'Phone or email')),
           const SizedBox(height: 12),

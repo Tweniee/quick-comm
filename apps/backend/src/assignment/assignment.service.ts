@@ -117,7 +117,7 @@ export class AssignmentService {
       expiresAt: offer.expiresAt,
       distanceToPickupKm: offer.distanceKm,
       pickup: { businessName: o.business.name, address: o.pickupAddress.address, lat: o.pickupAddress.lat, lng: o.pickupAddress.lng },
-      drop: { area: o.dropPincode, distanceKm: Math.round(haversineKm(o.pickupAddress.lat, o.pickupAddress.lng, o.dropLat, o.dropLng) * 10) / 10 },
+      drop: { area: o.dropPincode, landmark: o.dropLandmark, distanceKm: Math.round(haversineKm(o.pickupAddress.lat, o.pickupAddress.lng, o.dropLat, o.dropLng) * 10) / 10 },
       parcel: { description: o.parcelDescription, weightGrams: o.weightGrams, isFragile: o.isFragile },
       earning: splitFee(o.deliveryFee, o.driverSharePct).driver,
     };

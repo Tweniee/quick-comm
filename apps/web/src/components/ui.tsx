@@ -32,7 +32,13 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
   return <div className={`stat ${tone ?? ''}`}><div className="stat-v">{value}</div><div className="stat-l">{label}</div></div>;
 }
 
-export function Shell({ kind, nav, children }: { kind: Kind; nav: { href: string; label: string }[]; children: ReactNode }) {
+export type NavItem = { href: string; label: string } | { section: string };
+
+export function Logo({ size }: { size?: 'lg' }) {
+  return <div className={`logo ${size ?? ''}`} aria-hidden="true">T</div>;
+}
+
+export function Shell({ kind, nav, bottomNav, children }: { kind: Kind; nav: NavItem[]; bottomNav?: { href: string; label: string }[]; children: ReactNode }) {
   const router = useRouter();
   const path = usePathname();
   const [ready, setReady] = useState(false);
@@ -42,21 +48,44 @@ export function Shell({ kind, nav, children }: { kind: Kind; nav: { href: string
     else setReady(true);
   }, [kind, router]);
   if (!ready) return null;
+  const isActive = (href: string) => path === href || (href !== `/${kind}` && path.startsWith(href + '/')) || (href !== `/${kind}` && path === href);
   return (
-    <div className="shell">
+    <div className={`shell ${kind}`}>
       <aside className="side">
-        <div className="brand">Quick<span>Delivery</span><small>{kind === 'admin' ? 'Operations' : 'Business'}</small></div>
-        <nav>
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} className={path === n.href || (n.href !== `/${kind}` && path.startsWith(n.href)) ? 'active' : ''}>{n.label}</Link>
-          ))}
+        <div className="brand"><Logo />Tweniee {kind === 'admin' ? 'Admin' : 'Business'}</div>
+        <nav aria-label="Main">
+          {nav.map((n, i) => 'section' in n
+            ? <span key={i} className="section">{n.section}</span>
+            : <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>{n.label}</Link>)}
         </nav>
         <div className="side-foot">
-          <div className="muted small">{meta?.business?.name ?? meta?.user?.name}</div>
+          <span>{meta?.business?.name ?? meta?.user?.name}{meta?.user?.role ? ` · ${meta.user.role.replace('_', ' ').toLowerCase()}` : ''}</span>
           <button className="link" onClick={() => { session.clear(kind); router.replace(`/${kind}/login`); }}>Log out</button>
         </div>
       </aside>
       <main className="main">{children}</main>
+      {bottomNav && (
+        <nav className="bnav" aria-label="App">
+          {bottomNav.map((n) => <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>{n.label}</Link>)}
+        </nav>
+      )}
+    </div>
+  );
+}
+
+export function PageHead({ title, sub, right }: { title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="row between" style={{ alignItems: 'flex-start' }}>
+      <div><h1>{title}</h1>{sub && <p className="sub" style={{ margin: 0 }}>{sub}</p>}</div>
+      {right && <div className="row">{right}</div>}
+    </div>
+  );
+}
+
+export function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="chips" role="tablist">
+      {options.map((o) => <button key={o.value} role="tab" aria-selected={value === o.value} className={`chip ${value === o.value ? 'on' : ''}`} onClick={() => onChange(o.value)}>{o.label}</button>)}
     </div>
   );
 }

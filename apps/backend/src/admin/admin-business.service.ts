@@ -52,14 +52,16 @@ export class AdminBusinessService {
     };
   }
 
-  async review(id: string, action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'REACTIVATE', reason: string | undefined, adminId: string) {
-    const b = await this.prisma.business.findUnique({ where: { id } });
+  async review(id: string, action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'REACTIVATE' | 'REQUEST_REUPLOAD', reason: string | undefined, adminId: string) {
+    const b = await this.prisma.business.findUnique({ where: { id }, include: { addresses: { where: { active: true } } } });
     if (!b) throw Errors.notFound('Business');
     if (action !== 'APPROVE' && action !== 'REACTIVATE' && !reason?.trim()) throw new AppError('REASON_REQUIRED', 'A reason is required', 422);
     let data: Record<string, unknown>;
     switch (action) {
       case 'APPROVE':
         if (!['PENDING', 'REJECTED'].includes(b.status)) throw new AppError('NOT_REVIEWABLE', `Cannot approve a ${b.status} business`, 409);
+        if (!b.phoneVerifiedAt || !b.emailVerifiedAt) throw new AppError('CONTACT_NOT_VERIFIED', 'The business has not verified its mobile and email yet', 409);
+        if (!b.addresses.length) throw new AppError('PICKUP_REQUIRED', 'The business has no pickup address yet', 409);
         data = { status: 'APPROVED', statusReason: null, verifiedAt: new Date(), verifiedByAdminId: adminId, flaggedForReview: false };
         break;
       case 'REJECT': {
@@ -68,6 +70,10 @@ export class AdminBusinessService {
         data = { status: 'REJECTED', statusReason: n >= 2 ? `${reason} (second rejection: manual call required before re-applying)` : reason, rejectionCount: n };
         break;
       }
+      case 'REQUEST_REUPLOAD':
+        if (b.status !== 'PENDING') throw new AppError('NOT_REVIEWABLE', `Cannot ask a ${b.status} business to re-upload`, 409);
+        data = { statusReason: `Re-upload needed: ${reason}`, submittedAt: null };
+        break;
       case 'SUSPEND':
         // Blocks new orders immediately; live orders continue; wallet visible but frozen.
         if (b.status !== 'APPROVED') throw new AppError('NOT_SUSPENDABLE', 'Only approved businesses can be suspended', 409);
@@ -81,10 +87,11 @@ export class AdminBusinessService {
     const updated = await this.prisma.business.update({ where: { id }, data });
     await this.audit.log({ actorType: 'ADMIN', actorId: adminId, action: `BUSINESS_${action}`, entity: 'Business', entityId: id, oldValue: { status: b.status }, newValue: { status: updated.status }, reason });
     const msg = {
-      APPROVE: `${b.name} is verified on Quick Delivery. Recharge your wallet and create your first order.`,
-      REJECT: `Your Quick Delivery verification was not approved: ${reason}. You can re-apply with corrected documents.`,
-      SUSPEND: `Your Quick Delivery account is suspended: ${reason}. Contact support.`,
-      REACTIVATE: `Your Quick Delivery account is active again.`,
+      APPROVE: `${b.name} is verified on Tweniee. Recharge your wallet and create your first order.`,
+      REJECT: `Your Tweniee verification was not approved: ${reason}. You can re-apply with corrected documents.`,
+      SUSPEND: `Your Tweniee account is suspended: ${reason}. Contact support.`,
+      REACTIVATE: `Your Tweniee account is active again.`,
+      REQUEST_REUPLOAD: `Tweniee verification: please re-upload ${reason}. Then submit again from the app.`,
     }[action];
     await this.notify.send({ channel: 'SMS', to: b.phone, template: `BUSINESS_${action}`, body: msg });
     return updated;

@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { BusinessType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AuditService } from '../common/audit.service';
-import { randomToken, sha256 } from '../common/crypto';
+import { numericCode, randomToken, sha256 } from '../common/crypto';
+import { config } from '../common/config';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AppError, Errors } from '../common/errors';
 import { insideCircle } from '../common/geo';
 import { normalizePhone } from '../common/phone';
@@ -13,7 +15,7 @@ import { DocumentsService, UploadedFileLike } from '../documents/documents.servi
 export interface SignupInput {
   cityId: string;
   name: string;
-  type: BusinessType;
+  type?: BusinessType;
   ownerName: string;
   phone: string;
   email: string;
@@ -25,7 +27,7 @@ export interface SignupInput {
   instagram?: string;
   googleProfile?: string;
   acceptTerms: boolean;
-  pickup: { label?: string; address: string; landmark?: string; pincode: string; lat: number; lng: number };
+  pickup?: { label?: string; address: string; landmark?: string; pincode: string; lat: number; lng: number };
 }
 
 export interface AddressInput { label: string; address: string; landmark?: string; pincode: string; lat: number; lng: number; contactPhone?: string; isDefault?: boolean }
@@ -34,7 +36,7 @@ const BUSINESS_DOC_KINDS = ['PAN', 'GST_CERT', 'SHOP_LICENCE', 'UDYAM', 'INCORPO
 
 @Injectable()
 export class BusinessesService {
-  constructor(private prisma: PrismaService, private audit: AuditService, private auth: AuthService, private docs: DocumentsService) {}
+  constructor(private prisma: PrismaService, private audit: AuditService, private auth: AuthService, private docs: DocumentsService, private notify: NotificationsService) {}
 
   async signup(input: SignupInput) {
     if (!input.acceptTerms) throw new AppError('TERMS_REQUIRED', 'Please accept the business terms to continue', 422);
@@ -44,7 +46,7 @@ export class BusinessesService {
     const email = input.email.toLowerCase().trim();
     const city = await this.prisma.city.findUnique({ where: { id: input.cityId } });
     if (!city) throw Errors.notFound('City');
-    if (!insideCircle(input.pickup.lat, input.pickup.lng, city)) throw Errors.outsideServiceArea('pickup');
+    if (input.pickup && !insideCircle(input.pickup.lat, input.pickup.lng, city)) throw Errors.outsideServiceArea('pickup');
 
     const dupUser = await this.prisma.businessUser.findFirst({ where: { OR: [{ phone }, { email }] } });
     const dupBiz = await this.prisma.business.findFirst({ where: { OR: [{ phone }, { email }] } });
@@ -63,7 +65,7 @@ export class BusinessesService {
       data: {
         cityId: city.id,
         name: input.name.trim(),
-        type: input.type,
+        type: input.type ?? 'INDIVIDUAL',
         ownerName: input.ownerName.trim(),
         phone,
         email,
@@ -77,11 +79,92 @@ export class BusinessesService {
         flaggedForReview: !hasPresence || flags.length > 0,
         statusReason: flags.length ? flags.join(', ') : !hasPresence ? 'No public presence given; needs shop photo and manual review' : null,
         users: { create: { name: input.ownerName.trim(), phone, email, passwordHash: await bcrypt.hash(input.password, 10), role: 'OWNER' } },
-        addresses: { create: { label: input.pickup.label || 'Main', address: input.pickup.address, landmark: input.pickup.landmark, pincode: input.pickup.pincode, lat: input.pickup.lat, lng: input.pickup.lng, isDefault: true } },
+        ...(input.pickup ? { addresses: { create: { label: input.pickup.label || 'Main', address: input.pickup.address, landmark: input.pickup.landmark, pincode: input.pickup.pincode, lat: input.pickup.lat, lng: input.pickup.lng, isDefault: true } } } : {}),
       },
     });
     await this.audit.log({ actorType: 'BUSINESS', actorId: business.id, action: 'BUSINESS_SIGNUP', entity: 'Business', entityId: business.id });
-    return this.auth.businessLogin(phone, input.password);
+    const codes = await this.sendContactCodes(business.id);
+    const session = await this.auth.businessLogin(phone, input.password);
+    return { ...session, verification: codes };
+  }
+
+  // ── Contact verification (B02): SMS + email codes; 5 wrong tries lock for 15 minutes ──
+  private async sendContactCodes(businessId: string) {
+    const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
+    const out: Record<string, string> = {};
+    for (const [purpose, to, verified] of [['BUSINESS_PHONE', b.phone, b.phoneVerifiedAt], ['BUSINESS_EMAIL', b.email, b.emailVerifiedAt]] as const) {
+      if (verified) continue;
+      const locked = await this.prisma.loginOtp.findFirst({ where: { phone: to, purpose, lockedUntil: { gt: new Date() } } });
+      if (locked) throw new AppError('OTP_LOCKED', 'Too many wrong codes. Try again in 15 minutes.', 429, 'RETRY_LATER', { lockedUntil: locked.lockedUntil });
+      const recent = await this.prisma.loginOtp.count({ where: { phone: to, purpose, createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
+      if (recent >= 5) throw new AppError('TOO_MANY_OTP_REQUESTS', 'Too many codes requested. Try again in 10 minutes.', 429, 'RETRY_LATER');
+      const code = numericCode(6);
+      await this.prisma.loginOtp.create({ data: { phone: to, purpose, codeHash: sha256(`${to}:${code}`), expiresAt: new Date(Date.now() + 10 * 60_000) } });
+      await this.notify.send({ channel: purpose === 'BUSINESS_PHONE' ? 'SMS' : 'EMAIL', to, template: purpose, body: `Your Tweniee verification code is ${code}. It expires in 10 minutes.`, secret: code });
+      if (config.devEchoOtp) out[purpose === 'BUSINESS_PHONE' ? 'devPhoneCode' : 'devEmailCode'] = code;
+    }
+    return { sent: true, resendAfterSeconds: 30, ...out };
+  }
+
+  resendContactCodes(businessId: string) {
+    return this.sendContactCodes(businessId);
+  }
+
+  async verifyContact(businessId: string, phoneCode: string, emailCode: string) {
+    const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
+    const check = async (purpose: string, to: string, code: string, done: Date | null) => {
+      if (done) return true;
+      const otp = await this.prisma.loginOtp.findFirst({ where: { phone: to, purpose, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+      if (!otp) throw new AppError('OTP_EXPIRED', 'Code expired. Tap Resend for a new one.', 401, 'RESEND');
+      if (otp.lockedUntil && otp.lockedUntil > new Date()) throw new AppError('OTP_LOCKED', 'Too many wrong codes. Try again in 15 minutes.', 429, 'RETRY_LATER');
+      if (otp.codeHash !== sha256(`${to}:${(code ?? '').trim()}`)) {
+        const attempts = otp.attempts + 1;
+        await this.prisma.loginOtp.update({ where: { id: otp.id }, data: { attempts, ...(attempts >= 5 ? { lockedUntil: new Date(Date.now() + 15 * 60_000) } : {}) } });
+        throw new AppError('OTP_INVALID', `Wrong ${purpose === 'BUSINESS_PHONE' ? 'SMS' : 'email'} code. ${Math.max(0, 5 - attempts)} tries left.`, 401, undefined, { which: purpose === 'BUSINESS_PHONE' ? 'phone' : 'email' });
+      }
+      await this.prisma.loginOtp.update({ where: { id: otp.id }, data: { usedAt: new Date() } });
+      return true;
+    };
+    await check('BUSINESS_PHONE', b.phone, phoneCode, b.phoneVerifiedAt);
+    if (!b.phoneVerifiedAt) await this.prisma.business.update({ where: { id: businessId }, data: { phoneVerifiedAt: new Date() } });
+    await check('BUSINESS_EMAIL', b.email, emailCode, b.emailVerifiedAt);
+    if (!b.emailVerifiedAt) await this.prisma.business.update({ where: { id: businessId }, data: { emailVerifiedAt: new Date() } });
+    await this.audit.log({ actorType: 'BUSINESS', actorId: businessId, action: 'BUSINESS_CONTACT_VERIFIED', entity: 'Business', entityId: businessId });
+    return this.me(businessId);
+  }
+
+  /** B04 → B05: owner submits for staff review once contact, details and documents are in. */
+  async submitForReview(businessId: string) {
+    const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId }, include: { addresses: { where: { active: true } }, documents: true } });
+    if (!b.phoneVerifiedAt || !b.emailVerifiedAt) throw new AppError('CONTACT_NOT_VERIFIED', 'Verify your mobile and email first', 409, 'VERIFY_CONTACT');
+    if (!b.addresses.length) throw new AppError('PICKUP_REQUIRED', 'Add your pickup address first', 409, 'ADD_PICKUP_ADDRESS');
+    if (!b.documents.length) throw new AppError('DOCUMENTS_REQUIRED', 'Upload your KYC documents first', 409, 'UPLOAD_DOCUMENTS');
+    await this.prisma.business.update({ where: { id: businessId }, data: { submittedAt: b.submittedAt ?? new Date() } });
+    return this.me(businessId);
+  }
+
+  // ── Team (B17): owner adds staff who can create orders ──
+  listUsers(businessId: string) {
+    return this.prisma.businessUser.findMany({ where: { businessId }, select: { id: true, name: true, phone: true, email: true, role: true, active: true, createdAt: true }, orderBy: { createdAt: 'asc' } });
+  }
+
+  async addUser(businessId: string, ownerId: string, u: { name: string; phone: string; email?: string; password: string }) {
+    const phone = normalizePhone(u.phone);
+    if (!phone) throw Errors.invalidPhone();
+    const email = u.email?.toLowerCase().trim() || undefined;
+    const dup = await this.prisma.businessUser.findFirst({ where: { OR: [{ phone }, ...(email ? [{ email }] : [])] } });
+    if (dup) throw new AppError('ALREADY_REGISTERED', 'This phone or email already has a login', 409);
+    const created = await this.prisma.businessUser.create({ data: { businessId, name: u.name.trim(), phone, email, passwordHash: await bcrypt.hash(u.password, 10), role: 'STAFF' }, select: { id: true, name: true, phone: true, email: true, role: true, active: true } });
+    await this.audit.log({ actorType: 'BUSINESS', actorId: ownerId, action: 'BUSINESS_USER_ADD', entity: 'BusinessUser', entityId: created.id });
+    return created;
+  }
+
+  async setUserActive(businessId: string, ownerId: string, id: string, active: boolean) {
+    const u = await this.prisma.businessUser.findFirst({ where: { id, businessId } });
+    if (!u) throw Errors.notFound('User');
+    if (u.role === 'OWNER') throw new AppError('OWNER_LOCKED', 'The owner login cannot be turned off here. Contact support.', 409);
+    await this.audit.log({ actorType: 'BUSINESS', actorId: ownerId, action: active ? 'BUSINESS_USER_ON' : 'BUSINESS_USER_OFF', entity: 'BusinessUser', entityId: id });
+    return this.prisma.businessUser.update({ where: { id }, data: { active }, select: { id: true, active: true } });
   }
 
   async me(businessId: string) {
@@ -94,8 +177,9 @@ export class BusinessesService {
     return { ...rest, webhookSecretSet: !!webhookSecret };
   }
 
-  async updateProfile(businessId: string, data: Partial<Pick<SignupInput, 'website' | 'instagram' | 'googleProfile' | 'category' | 'gstin' | 'pan'>> & { billingAddress?: string }) {
+  async updateProfile(businessId: string, data: Partial<Pick<SignupInput, 'website' | 'instagram' | 'googleProfile' | 'category' | 'gstin' | 'pan' | 'type'>> & { billingAddress?: string }) {
     const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
+    if (b.status === 'APPROVED' && data.type && data.type !== b.type) throw new AppError('LOCKED_AFTER_APPROVAL', 'Business type can be changed only through support after approval', 409, 'CONTACT_SUPPORT');
     // Identity fields can only be changed before approval.
     if (b.status === 'APPROVED' && (data.gstin || data.pan)) throw new AppError('LOCKED_AFTER_APPROVAL', 'GSTIN/PAN can be changed only through support after approval', 409, 'CONTACT_SUPPORT');
     return this.prisma.business.update({ where: { id: businessId }, data });
@@ -148,7 +232,7 @@ export class BusinessesService {
     const b = await this.prisma.business.findUniqueOrThrow({ where: { id: businessId } });
     if (b.status !== 'APPROVED') throw Errors.businessNotVerified();
     if (!b.apiEnabled) throw new AppError('API_NOT_WHITELISTED', 'API access is not enabled for your business yet. Request it from support.', 403, 'REQUEST_API_ACCESS');
-    const keyId = `qd_${mode.toLowerCase()}_${randomToken(9)}`;
+    const keyId = `tw_${mode.toLowerCase()}_${randomToken(9)}`;
     const secret = `qds_${randomToken(24)}`;
     await this.prisma.apiKey.create({ data: { businessId, keyId, secretHash: sha256(secret), mode } });
     await this.audit.log({ actorType: 'BUSINESS', actorId: businessId, action: 'API_KEY_CREATE', entity: 'ApiKey', entityId: keyId });
